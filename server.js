@@ -1,0 +1,720 @@
+const crypto = require("node:crypto");
+const fs = require("node:fs/promises");
+const fsSync = require("node:fs");
+const http = require("node:http");
+const path = require("node:path");
+
+const root = __dirname;
+const dataDir = process.env.FDTG_DATA_DIR || path.join(root, "data");
+const dataFile = path.join(dataDir, "subscribers.json");
+
+loadEnvFile();
+
+const port = Number(process.env.PORT || 8000);
+const host = process.env.HOST || (process.env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1");
+const adminUsername = process.env.FDTG_ADMIN_USERNAME || "george";
+const adminPassword = process.env.FDTG_ADMIN_PASSWORD || "local-admin";
+const sessionSecret = process.env.FDTG_SESSION_SECRET || crypto.randomBytes(32).toString("hex");
+const sessions = new Map();
+
+const mimeTypes = {
+  ".css": "text/css; charset=utf-8",
+  ".html": "text/html; charset=utf-8",
+  ".js": "application/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".png": "image/png",
+};
+
+function loadEnvFile() {
+  const envPath = path.join(root, ".env");
+  if (!fsSync.existsSync(envPath)) return;
+
+  const lines = fsSync.readFileSync(envPath, "utf8").split(/\r?\n/);
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) return;
+    const separator = trimmed.indexOf("=");
+    if (separator === -1) return;
+    const key = trimmed.slice(0, separator).trim();
+    const value = trimmed.slice(separator + 1).trim().replace(/^["']|["']$/g, "");
+    if (key && !process.env[key]) process.env[key] = value;
+  });
+}
+
+function json(res, statusCode, payload) {
+  res.writeHead(statusCode, { "Content-Type": "application/json; charset=utf-8" });
+  res.end(JSON.stringify(payload));
+}
+
+function notFound(res) {
+  json(res, 404, { error: "Not found." });
+}
+
+async function readBody(req) {
+  const chunks = [];
+  for await (const chunk of req) {
+    chunks.push(chunk);
+    if (Buffer.concat(chunks).length > 1024 * 1024) {
+      throw new Error("Request body too large.");
+    }
+  }
+
+  if (!chunks.length) return {};
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+}
+
+async function ensureStore() {
+  await fs.mkdir(dataDir, { recursive: true });
+  try {
+    await fs.access(dataFile);
+  } catch {
+    await fs.writeFile(dataFile, JSON.stringify(defaultStore(), null, 2));
+  }
+}
+
+function defaultStore() {
+  const now = new Date().toISOString();
+  return {
+    subscribers: [],
+    inboundMessages: [],
+    fieldNotes: [
+      {
+        id: "starter-ai-boom-schedule",
+        title: "The AI boom sounds abstract until you are staring at a schedule.",
+        category: "Field Note",
+        summary: "The AI boom sounds abstract until you are staring at a schedule that needs power, cooling, controls, inspections, and a room full of people aligned enough to make it real.",
+        body: "The AI boom sounds abstract until you are staring at a schedule that needs power, cooling, controls, inspections, and a room full of people aligned enough to make it real.",
+        status: "draft",
+        createdAt: now,
+        updatedAt: now,
+        publishedAt: null,
+      },
+      {
+        id: "starter-relationships-infrastructure",
+        title: "Relationships are infrastructure too.",
+        category: "Field Note",
+        summary: "Relationships are infrastructure too. The right phone call can move a problem faster than another meeting invite ever will.",
+        body: "Relationships are infrastructure too. The right phone call can move a problem faster than another meeting invite ever will.",
+        status: "draft",
+        createdAt: now,
+        updatedAt: now,
+        publishedAt: null,
+      },
+      {
+        id: "starter-field-truth",
+        title: "The field tells the truth first.",
+        category: "Field Note",
+        summary: "Data centers taught me that the field always tells the truth first. The report catches up later.",
+        body: "Data centers taught me that the field always tells the truth first. The report catches up later.",
+        status: "draft",
+        createdAt: now,
+        updatedAt: now,
+        publishedAt: null,
+      },
+      {
+        id: "starter-power-schedule",
+        title: "Power is the headline constraint.",
+        category: "Field Note",
+        summary: "Power is the headline constraint, but schedule is where the pain shows up every day.",
+        body: "Power is the headline constraint, but schedule is where the pain shows up every day.",
+        status: "draft",
+        createdAt: now,
+        updatedAt: now,
+        publishedAt: null,
+      },
+      {
+        id: "starter-ai-dirt-phase",
+        title: "AI does not start with a model.",
+        category: "Essay",
+        summary: "It starts with land, power, concrete, steel, cooling, labor, commissioning, and trust.",
+        body: "AI does not start with a model.\n\nIt starts with land. Power. Concrete. Steel. Cooling. Labor. Commissioning. Trust.\n\nEvery headline about compute has a physical world behind it. Someone has to build the room, protect the schedule, coordinate the trades, get the power online, and make the space ready for racks.\n\nThat side of the boom deserves more attention.",
+        status: "draft",
+        createdAt: now,
+        updatedAt: now,
+        publishedAt: null,
+      },
+      {
+        id: "starter-rack-ready",
+        title: "Rack ready is not a vibe.",
+        category: "Buildout",
+        summary: "It is a chain of handoffs, inspections, power, cooling, controls, and people who cannot miss.",
+        body: "Rack ready is not a vibe.\n\nIt is not just a clean room with cabinets in it. It is a chain of handoffs that had to land correctly: power, cooling, containment, controls, QA/QC, commissioning, documentation, and the people responsible for all of it.\n\nWhen someone says a room is rack ready, they are really saying a lot of people did not drop the ball.",
+        status: "draft",
+        createdAt: now,
+        updatedAt: now,
+        publishedAt: null,
+      },
+      {
+        id: "starter-room-with-experience",
+        title: "The room with more experience does not scare me anymore.",
+        category: "Career",
+        summary: "Nerve is not pretending to know everything. It is knowing how to find the person who does.",
+        body: "The room with more experience does not scare me anymore.\n\nI am usually not the gray-haired expert in the room. That used to feel like a disadvantage. Now I think it can be fuel if you know how to move.\n\nNerve is not pretending to know everything. It is being willing to ask better questions, find the person who knows, build trust quickly, and keep learning fast enough that people want you in the room again.",
+        status: "draft",
+        createdAt: now,
+        updatedAt: now,
+        publishedAt: null,
+      },
+    ],
+    settings: {
+      brandEmail: "",
+      adminName: "George",
+      newsletterCadence: "Weekly when there is something worth saying.",
+      publicSignupEnabled: true,
+      dmMode: "draft-only",
+    },
+    events: [],
+  };
+}
+
+async function loadStore() {
+  await ensureStore();
+  const store = JSON.parse(await fs.readFile(dataFile, "utf8"));
+  const defaults = defaultStore();
+  return {
+    ...defaults,
+    ...store,
+    settings: { ...defaults.settings, ...(store.settings || {}) },
+    subscribers: store.subscribers || [],
+    inboundMessages: store.inboundMessages || [],
+    fieldNotes: store.fieldNotes || [],
+    events: store.events || [],
+  };
+}
+
+async function saveStore(store) {
+  await ensureStore();
+  await fs.writeFile(dataFile, JSON.stringify(store, null, 2));
+}
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function hashValue(value) {
+  return crypto.createHash("sha256").update(`${sessionSecret}:${value || ""}`).digest("hex").slice(0, 16);
+}
+
+function parseCookies(req) {
+  return Object.fromEntries(
+    String(req.headers.cookie || "")
+      .split(";")
+      .map((part) => part.trim().split("="))
+      .filter(([key, value]) => key && value)
+  );
+}
+
+function createSession(res) {
+  const token = crypto.randomBytes(32).toString("hex");
+  sessions.set(token, { createdAt: Date.now() });
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  res.setHeader("Set-Cookie", `fdtg_admin=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800${secure}`);
+}
+
+function clearSession(req, res) {
+  const token = parseCookies(req).fdtg_admin;
+  if (token) sessions.delete(token);
+  res.setHeader("Set-Cookie", "fdtg_admin=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0");
+}
+
+function isAuthed(req) {
+  const token = parseCookies(req).fdtg_admin;
+  const session = token && sessions.get(token);
+  if (!session) return false;
+
+  const eightHours = 8 * 60 * 60 * 1000;
+  if (Date.now() - session.createdAt > eightHours) {
+    sessions.delete(token);
+    return false;
+  }
+  return true;
+}
+
+function requireAdmin(req, res) {
+  if (isAuthed(req)) return true;
+  json(res, 401, { error: "Admin login required." });
+  return false;
+}
+
+function subscriberStats(subscribers) {
+  const now = Date.now();
+  const sevenDays = 7 * 24 * 60 * 60 * 1000;
+  const active = subscribers.filter((subscriber) => subscriber.status === "active");
+  const sourceCounts = subscribers.reduce((counts, subscriber) => {
+    const source = subscriber.source || "site";
+    counts[source] = (counts[source] || 0) + 1;
+    return counts;
+  }, {});
+
+  return {
+    total: subscribers.length,
+    active: active.length,
+    removed: subscribers.filter((subscriber) => subscriber.status === "removed").length,
+    newLast7Days: subscribers.filter((subscriber) => now - new Date(subscriber.createdAt).getTime() <= sevenDays).length,
+    lastSignupAt: subscribers
+      .map((subscriber) => subscriber.createdAt)
+      .sort()
+      .at(-1) || null,
+    sourceCounts,
+  };
+}
+
+function publicSubscriber(subscriber) {
+  return {
+    id: subscriber.id,
+    email: subscriber.email,
+    status: subscriber.status,
+    source: subscriber.source,
+    notes: subscriber.notes || "",
+    tags: subscriber.tags || [],
+    createdAt: subscriber.createdAt,
+    updatedAt: subscriber.updatedAt,
+    lastContactedAt: subscriber.lastContactedAt || null,
+    messages: subscriber.messages || [],
+  };
+}
+
+function publicFieldNote(note) {
+  return {
+    id: note.id,
+    title: note.title,
+    category: note.category,
+    summary: note.summary,
+    body: note.status === "published" ? note.body : "",
+    status: note.status,
+    createdAt: note.createdAt,
+    updatedAt: note.updatedAt,
+    publishedAt: note.publishedAt || null,
+    reactions: note.reactions || { up: 0, down: 0 },
+  };
+}
+
+function adminFieldNote(note) {
+  return {
+    id: note.id,
+    title: note.title,
+    category: note.category,
+    summary: note.summary,
+    body: note.body || "",
+    status: note.status,
+    createdAt: note.createdAt,
+    updatedAt: note.updatedAt,
+    publishedAt: note.publishedAt || null,
+    reactions: note.reactions || { up: 0, down: 0 },
+  };
+}
+
+async function handleApi(req, res, pathname) {
+  if (req.method === "POST" && pathname === "/api/messages") {
+    const body = await readBody(req);
+    const email = normalizeEmail(body.email);
+    const message = String(body.message || "").trim().slice(0, 5000);
+
+    if (!isValidEmail(email)) {
+      json(res, 400, { error: "Enter a real email address." });
+      return;
+    }
+
+    if (message.length < 10) {
+      json(res, 400, { error: "Write a little more so there is something to reply to." });
+      return;
+    }
+
+    const store = await loadStore();
+    const now = new Date().toISOString();
+    const inbound = {
+      id: crypto.randomUUID(),
+      email,
+      message,
+      status: "new",
+      createdAt: now,
+      updatedAt: now,
+      ipHash: hashValue(req.socket.remoteAddress),
+      userAgentHash: hashValue(req.headers["user-agent"]),
+    };
+
+    store.inboundMessages.unshift(inbound);
+    store.events.push({ type: "inbound_message", messageId: inbound.id, at: now });
+    await saveStore(store);
+    json(res, 201, { ok: true });
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/field-notes") {
+    const store = await loadStore();
+    json(res, 200, {
+      notes: store.fieldNotes
+        .filter((note) => note.status === "published")
+        .sort((a, b) => String(b.publishedAt || b.updatedAt).localeCompare(String(a.publishedAt || a.updatedAt)))
+        .map(publicFieldNote),
+    });
+    return;
+  }
+
+  const reactionMatch = pathname.match(/^\/api\/field-notes\/([^/]+)\/react$/);
+  if (req.method === "POST" && reactionMatch) {
+    const body = await readBody(req);
+    const reaction = body.reaction === "down" ? "down" : body.reaction === "up" ? "up" : null;
+    const previousReaction = body.previousReaction === "down" ? "down" : body.previousReaction === "up" ? "up" : null;
+    if (!reaction) {
+      json(res, 400, { error: "Invalid reaction." });
+      return;
+    }
+
+    const store = await loadStore();
+    const note = store.fieldNotes.find((item) => item.id === reactionMatch[1] && item.status === "published");
+    if (!note) {
+      json(res, 404, { error: "Field note not found." });
+      return;
+    }
+
+    note.reactions = note.reactions || { up: 0, down: 0 };
+    if (previousReaction && previousReaction !== reaction) {
+      note.reactions[previousReaction] = Math.max(0, note.reactions[previousReaction] - 1);
+    }
+    note.reactions[reaction] += 1;
+    store.events.push({ type: `field_note_${reaction}`, noteId: note.id, at: new Date().toISOString() });
+    await saveStore(store);
+    json(res, 200, { reactions: note.reactions });
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/subscribe") {
+    const body = await readBody(req);
+    const store = await loadStore();
+
+    if (!store.settings.publicSignupEnabled) {
+      json(res, 403, { error: "Signup is temporarily closed." });
+      return;
+    }
+
+    const email = normalizeEmail(body.email);
+    if (!isValidEmail(email)) {
+      json(res, 400, { error: "Enter a real email address." });
+      return;
+    }
+
+    const existing = store.subscribers.find((subscriber) => subscriber.email === email);
+    const now = new Date().toISOString();
+
+    if (existing) {
+      existing.status = "active";
+      existing.updatedAt = now;
+      existing.source = existing.source || body.source || "site";
+      store.events.push({ type: "resubscribed", subscriberId: existing.id, at: now });
+      await saveStore(store);
+      json(res, 200, { ok: true, alreadySubscribed: true });
+      return;
+    }
+
+    const subscriber = {
+      id: crypto.randomUUID(),
+      email,
+      status: "active",
+      source: String(body.source || "site").slice(0, 80),
+      notes: "",
+      tags: [],
+      createdAt: now,
+      updatedAt: now,
+      lastContactedAt: null,
+      ipHash: hashValue(req.socket.remoteAddress),
+      userAgentHash: hashValue(req.headers["user-agent"]),
+    };
+
+    store.subscribers.unshift(subscriber);
+    store.events.push({ type: "subscribed", subscriberId: subscriber.id, at: now });
+    await saveStore(store);
+    json(res, 201, { ok: true, alreadySubscribed: false });
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/admin/login") {
+    const body = await readBody(req);
+    if (String(body.username || "").trim().toLowerCase() !== adminUsername.toLowerCase() || body.password !== adminPassword) {
+      json(res, 401, { error: "Wrong username or password." });
+      return;
+    }
+    createSession(res);
+    json(res, 200, { ok: true });
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/admin/logout") {
+    clearSession(req, res);
+    json(res, 200, { ok: true });
+    return;
+  }
+
+  if (pathname === "/api/admin/me") {
+    json(res, isAuthed(req) ? 200 : 401, { authed: isAuthed(req) });
+    return;
+  }
+
+  if (!requireAdmin(req, res)) return;
+
+  if (req.method === "GET" && pathname === "/api/admin/subscribers") {
+    const store = await loadStore();
+    json(res, 200, {
+      stats: subscriberStats(store.subscribers),
+      subscribers: store.subscribers.map(publicSubscriber),
+    });
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/admin/messages") {
+    const store = await loadStore();
+    json(res, 200, { messages: store.inboundMessages });
+    return;
+  }
+
+  const inboundMatch = pathname.match(/^\/api\/admin\/messages\/([^/]+)$/);
+  if (inboundMatch) {
+    const store = await loadStore();
+    const message = store.inboundMessages.find((item) => item.id === inboundMatch[1]);
+    if (!message) {
+      json(res, 404, { error: "Message not found." });
+      return;
+    }
+
+    if (req.method === "PATCH") {
+      const body = await readBody(req);
+      if (body.status && !["new", "read", "replied", "archived"].includes(body.status)) {
+        json(res, 400, { error: "Invalid message status." });
+        return;
+      }
+      if (body.status) message.status = body.status;
+      message.updatedAt = new Date().toISOString();
+      store.events.push({ type: "inbound_message_updated", messageId: message.id, at: message.updatedAt });
+      await saveStore(store);
+      json(res, 200, { message });
+      return;
+    }
+  }
+
+  if (req.method === "GET" && pathname === "/api/admin/events") {
+    const store = await loadStore();
+    const subscriberById = new Map(store.subscribers.map((subscriber) => [subscriber.id, subscriber]));
+    json(res, 200, {
+      events: store.events
+        .slice(-100)
+        .reverse()
+        .map((event) => ({
+          ...event,
+          subscriberEmail: event.subscriberId ? subscriberById.get(event.subscriberId)?.email || null : null,
+        })),
+    });
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/admin/field-notes") {
+    const store = await loadStore();
+    json(res, 200, {
+      notes: store.fieldNotes
+        .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
+        .map(adminFieldNote),
+    });
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/admin/field-notes") {
+    const body = await readBody(req);
+    const title = String(body.title || "").trim();
+    if (!title) {
+      json(res, 400, { error: "Title is required." });
+      return;
+    }
+
+    const store = await loadStore();
+    const now = new Date().toISOString();
+    const status = body.status === "published" ? "published" : "draft";
+    const note = {
+      id: crypto.randomUUID(),
+      title: title.slice(0, 160),
+      category: String(body.category || "Field note").trim().slice(0, 80),
+      summary: String(body.summary || "").trim().slice(0, 500),
+      body: String(body.body || "").trim().slice(0, 20000),
+      status,
+      createdAt: now,
+      updatedAt: now,
+      publishedAt: status === "published" ? now : null,
+    };
+    store.fieldNotes.unshift(note);
+    store.events.push({ type: "field_note_created", noteId: note.id, at: now });
+    await saveStore(store);
+    json(res, 201, { note: adminFieldNote(note) });
+    return;
+  }
+
+  const noteMatch = pathname.match(/^\/api\/admin\/field-notes\/([^/]+)$/);
+  if (noteMatch) {
+    const store = await loadStore();
+    const note = store.fieldNotes.find((item) => item.id === noteMatch[1]);
+    if (!note) {
+      json(res, 404, { error: "Field note not found." });
+      return;
+    }
+
+    const now = new Date().toISOString();
+
+    if (req.method === "PATCH") {
+      const body = await readBody(req);
+      const previousStatus = note.status;
+      if (typeof body.title === "string") note.title = body.title.trim().slice(0, 160);
+      if (typeof body.category === "string") note.category = body.category.trim().slice(0, 80);
+      if (typeof body.summary === "string") note.summary = body.summary.trim().slice(0, 500);
+      if (typeof body.body === "string") note.body = body.body.trim().slice(0, 20000);
+      if (body.status && ["draft", "published", "archived"].includes(body.status)) note.status = body.status;
+      if (note.status === "published" && previousStatus !== "published") note.publishedAt = now;
+      if (note.status !== "published") note.publishedAt = note.status === "draft" ? null : note.publishedAt;
+      note.updatedAt = now;
+      store.events.push({ type: "field_note_updated", noteId: note.id, at: now });
+      await saveStore(store);
+      json(res, 200, { note: adminFieldNote(note) });
+      return;
+    }
+
+    if (req.method === "DELETE") {
+      store.fieldNotes = store.fieldNotes.filter((item) => item.id !== note.id);
+      store.events.push({ type: "field_note_deleted", noteId: note.id, at: now });
+      await saveStore(store);
+      json(res, 200, { ok: true });
+      return;
+    }
+  }
+
+  if (pathname === "/api/admin/settings") {
+    const store = await loadStore();
+
+    if (req.method === "GET") {
+      json(res, 200, { settings: store.settings });
+      return;
+    }
+
+    if (req.method === "PATCH") {
+      const body = await readBody(req);
+      const now = new Date().toISOString();
+      const allowed = ["brandEmail", "adminName", "newsletterCadence", "publicSignupEnabled", "dmMode"];
+      allowed.forEach((key) => {
+        if (Object.prototype.hasOwnProperty.call(body, key)) {
+          store.settings[key] = body[key];
+        }
+      });
+      store.events.push({ type: "settings_updated", at: now });
+      await saveStore(store);
+      json(res, 200, { settings: store.settings });
+      return;
+    }
+  }
+
+  const subscriberMatch = pathname.match(/^\/api\/admin\/subscribers\/([^/]+)(?:\/contact)?$/);
+  if (subscriberMatch) {
+    const store = await loadStore();
+    const subscriber = store.subscribers.find((item) => item.id === subscriberMatch[1]);
+    if (!subscriber) {
+      json(res, 404, { error: "Subscriber not found." });
+      return;
+    }
+
+    const now = new Date().toISOString();
+
+    if (req.method === "PATCH" && !pathname.endsWith("/contact")) {
+      const body = await readBody(req);
+      if (body.status && !["active", "removed"].includes(body.status)) {
+        json(res, 400, { error: "Invalid subscriber status." });
+        return;
+      }
+      if (typeof body.notes === "string") subscriber.notes = body.notes.slice(0, 3000);
+      if (typeof body.status === "string") subscriber.status = body.status;
+      subscriber.updatedAt = now;
+      store.events.push({ type: "updated", subscriberId: subscriber.id, at: now });
+      await saveStore(store);
+      json(res, 200, { subscriber: publicSubscriber(subscriber) });
+      return;
+    }
+
+    if (req.method === "POST" && pathname.endsWith("/contact")) {
+      const body = await readBody(req);
+      const message = String(body.message || "").trim().slice(0, 5000);
+
+      if (!message) {
+        json(res, 400, { error: "Write a message first." });
+        return;
+      }
+
+      subscriber.lastContactedAt = now;
+      subscriber.updatedAt = now;
+      subscriber.messages = subscriber.messages || [];
+      subscriber.messages.unshift({
+        id: crypto.randomUUID(),
+        body: message,
+        status: "drafted",
+        createdAt: now,
+      });
+      store.events.push({ type: "direct_message_drafted", subscriberId: subscriber.id, at: now });
+      await saveStore(store);
+      json(res, 200, { subscriber: publicSubscriber(subscriber) });
+      return;
+    }
+  }
+
+  notFound(res);
+}
+
+async function serveStatic(req, res, pathname) {
+  const route = pathname === "/"
+    ? "/index.html"
+    : pathname === "/admin"
+      ? "/admin.html"
+      : pathname === "/privacy"
+        ? "/privacy.html"
+        : pathname === "/message"
+          ? "/message.html"
+        : pathname;
+  const cleanRoute = path.normalize(route).replace(/^([/\\])+/, "");
+
+  if (cleanRoute.startsWith("data" + path.sep) || cleanRoute.startsWith(".") || cleanRoute.includes(path.sep + ".")) {
+    json(res, 403, { error: "Forbidden." });
+    return;
+  }
+
+  const filePath = path.normalize(path.join(root, route));
+
+  if (!filePath.startsWith(root)) {
+    json(res, 403, { error: "Forbidden." });
+    return;
+  }
+
+  try {
+    const data = await fs.readFile(filePath);
+    res.writeHead(200, { "Content-Type": mimeTypes[path.extname(filePath)] || "application/octet-stream" });
+    res.end(data);
+  } catch {
+    notFound(res);
+  }
+}
+
+const server = http.createServer(async (req, res) => {
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    if (url.pathname.startsWith("/api/")) {
+      await handleApi(req, res, url.pathname);
+      return;
+    }
+    await serveStatic(req, res, url.pathname);
+  } catch (error) {
+    json(res, 500, { error: error.message || "Server error." });
+  }
+});
+
+server.listen(port, host, () => {
+  const localUrl = host === "0.0.0.0" ? `http://127.0.0.1:${port}` : `http://${host}:${port}`;
+  console.log(`From Dirt to GPUs running at ${localUrl}/`);
+  console.log(`Admin dashboard: ${localUrl}/admin`);
+  console.log(`Admin username: ${adminUsername}`);
+  console.log(`Admin password: ${adminPassword}`);
+  console.log("Set FDTG_ADMIN_PASSWORD before launch. The current default is for local dev only.");
+});

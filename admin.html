@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Admin | From Dirt to GPUs</title>
+    <link rel="stylesheet" href="admin.css">
+  </head>
+  <body>
+    <main class="admin-shell">
+      <section class="login-panel" data-login-panel>
+        <p class="kicker">Admin</p>
+        <h1>Subscriber control room.</h1>
+        <p>Private dashboard for the From Dirt to GPUs list.</p>
+        <form data-login-form>
+          <label for="username">Username</label>
+          <input id="username" name="username" type="text" autocomplete="username" required>
+          <label for="password">Admin password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+          <button type="submit">Log in</button>
+          <p class="status" data-login-status aria-live="polite"></p>
+        </form>
+      </section>
+
+      <section class="dashboard" data-dashboard hidden>
+        <header class="dashboard-header">
+          <div>
+            <p class="kicker">From Dirt to GPUs</p>
+            <h1>Subscriber dashboard</h1>
+            <p class="dashboard-subtitle">Private control room for the list, drafts, DMs, and launch settings.</p>
+            <p class="dev-badge">Local v1 · not production storage</p>
+          </div>
+          <div class="header-actions">
+            <a class="button-link" href="/">View site</a>
+            <button type="button" data-refresh>Refresh</button>
+            <button type="button" data-export-json>Export JSON</button>
+            <button type="button" data-export-csv>Export CSV</button>
+            <button type="button" data-logout>Logout</button>
+          </div>
+        </header>
+
+        <section class="stats" aria-label="Subscriber stats">
+          <article>
+            <span data-stat="total">0</span>
+            <p>Total</p>
+          </article>
+          <article>
+            <span data-stat="active">0</span>
+            <p>Active</p>
+          </article>
+          <article>
+            <span data-stat="newLast7Days">0</span>
+            <p>New last 7 days</p>
+          </article>
+          <article>
+            <span data-stat="removed">0</span>
+            <p>Removed</p>
+          </article>
+        </section>
+
+        <section class="activity-panel" aria-label="Activity">
+          <div>
+            <p class="kicker">Activity</p>
+            <h2>What is moving</h2>
+          </div>
+          <div class="activity-grid">
+            <div>
+              <h3>Signup sources</h3>
+              <div data-source-list class="source-list">
+                <p class="empty">No sources yet.</p>
+              </div>
+            </div>
+            <div>
+              <h3>Recent events</h3>
+              <div data-event-list class="event-list">
+                <p class="empty">No events yet.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="inbox-panel" aria-label="Inbox">
+          <div class="section-title">
+            <div>
+              <p class="kicker">Inbox</p>
+              <h2>Direct messages</h2>
+            </div>
+            <button type="button" data-refresh-messages>Refresh inbox</button>
+          </div>
+          <div class="inbox-list" data-inbox-list>
+            <p class="empty">No messages yet.</p>
+          </div>
+        </section>
+
+        <section class="tools">
+          <label>
+            Search
+            <input type="search" data-search placeholder="email, source, notes">
+          </label>
+          <label>
+            Status
+            <select data-status-filter>
+              <option value="all">All</option>
+              <option value="active">Active</option>
+              <option value="removed">Removed</option>
+            </select>
+          </label>
+        </section>
+
+        <section class="settings-panel" aria-label="Admin settings">
+          <div>
+            <p class="kicker">Settings</p>
+            <h2>Admin-only controls for v1</h2>
+          </div>
+          <ul>
+            <li>Subscriber data is stored locally in <code>data/subscribers.json</code>.</li>
+            <li>Set <code>FDTG_ADMIN_PASSWORD</code> before putting this online.</li>
+            <li>DMs are saved as local drafts for now. Later, we can connect this to your brand email.</li>
+          </ul>
+        </section>
+
+        <section class="content-studio" aria-label="Field notes studio">
+          <div class="section-title">
+            <div>
+              <p class="kicker">Content studio</p>
+              <h2>Field Notes drafts</h2>
+            </div>
+            <button type="button" data-new-note>New draft</button>
+          </div>
+          <div class="content-grid">
+            <div class="note-drafts" data-note-list>
+              <p class="empty">No field notes yet.</p>
+            </div>
+            <form class="note-editor" data-note-form>
+              <input type="hidden" name="id">
+              <label>
+                Title
+                <input name="title" placeholder="AI does not start with a model." required>
+              </label>
+              <label>
+                Category
+                <input name="category" placeholder="Essay, Career, Buildout">
+              </label>
+              <label>
+                Summary
+                <textarea name="summary" placeholder="Short preview that appears on the site."></textarea>
+              </label>
+              <label>
+                Body
+                <textarea name="body" class="body-editor" placeholder="Write raw. Polish later."></textarea>
+              </label>
+              <label>
+                Status
+                <select name="status">
+                  <option value="draft">Draft</option>
+                  <option value="published">Published</option>
+                  <option value="archived">Archived</option>
+                </select>
+              </label>
+              <div class="editor-actions">
+                <button type="submit">Save note</button>
+                <button type="button" data-delete-note class="danger" hidden>Delete</button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <section class="settings-form-panel" aria-label="Site settings">
+          <div class="section-title">
+            <div>
+              <p class="kicker">Site settings</p>
+              <h2>Launch controls</h2>
+            </div>
+          </div>
+          <form class="settings-form" data-settings-form>
+            <label>
+              Admin name
+              <input name="adminName">
+            </label>
+            <label>
+              Brand email
+              <input name="brandEmail" placeholder="later@fromdirttogpus.com">
+            </label>
+            <label>
+              Newsletter cadence
+              <input name="newsletterCadence">
+            </label>
+            <label>
+              DM mode
+              <select name="dmMode">
+                <option value="draft-only">Draft only</option>
+                <option value="email-later">Email later</option>
+              </select>
+            </label>
+            <label class="check-row">
+              <input name="publicSignupEnabled" type="checkbox">
+              Public signup enabled
+            </label>
+            <button type="submit">Save settings</button>
+          </form>
+        </section>
+
+        <section class="grid">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Status</th>
+                  <th>Source</th>
+                  <th>Joined</th>
+                </tr>
+              </thead>
+              <tbody data-subscriber-table></tbody>
+            </table>
+          </div>
+
+          <aside class="detail" data-detail>
+            <p class="empty">Select a subscriber to view notes, status, and contact actions.</p>
+          </aside>
+        </section>
+      </section>
+    </main>
+    <script src="admin.js"></script>
+  </body>
+</html>

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Direct Message | From Dirt to GPUs</title>
+    <link rel="stylesheet" href="styles.css?v=5">
+  </head>
+  <body>
+    <main>
+      <section class="about message-page">
+        <div class="about-copy">
+          <p class="kicker">Direct message</p>
+          <h1>Send a note.</h1>
+          <p>
+            Ask a question, send a thought, or tell me what you want me to write
+            about next. Drop your email so I can reply directly.
+          </p>
+          <form class="message-form-public" data-message-form>
+            <label>
+              Email address
+              <input name="email" type="email" placeholder="Email address" required>
+            </label>
+            <label>
+              Message
+              <textarea name="message" placeholder="Write it raw. I will read it." required></textarea>
+            </label>
+            <button type="submit">Send message</button>
+            <p class="form-status" data-message-status aria-live="polite"></p>
+          </form>
+          <p><a href="/">Back to the site</a></p>
+        </div>
+      </section>
+    </main>
+    <script src="message.js"></script>
+  </body>
+</html>
