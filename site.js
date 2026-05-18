@@ -1,4 +1,5 @@
 const signupForms = document.querySelectorAll("[data-signup-form]");
+const subscriberEmailKey = "fdtg-subscriber-email";
 
 async function submitSignup(form) {
   const input = form.querySelector('input[name="email"]');
@@ -26,6 +27,7 @@ async function submitSignup(form) {
       throw new Error(result.error || "Could not subscribe.");
     }
 
+    localStorage.setItem(subscriberEmailKey, email);
     input.value = "";
     status.textContent = result.alreadySubscribed
       ? "Already on the list. Good taste."
@@ -80,16 +82,44 @@ function bindReactions() {
       const noteId = card?.dataset.noteId || card?.querySelector(".note-meta span")?.textContent?.trim();
       const reaction = button.dataset.reaction;
       const storageKey = `fdtg-reaction:${noteId}`;
+      const status = card?.querySelector("[data-reaction-status]");
       const existingReaction = localStorage.getItem(storageKey);
 
-      if (existingReaction === reaction) return;
+      if (existingReaction === reaction) {
+        if (status) status.textContent = "Already counted.";
+        return;
+      }
 
-      button.classList.add("is-selected");
-      localStorage.setItem(storageKey, reaction);
+      if (status) {
+        status.textContent = "";
+        status.classList.remove("is-error");
+      }
 
       if (!card?.dataset.noteId) {
+        button.closest(".reaction-row")?.querySelectorAll("[data-reaction]").forEach((control) => {
+          control.classList.toggle("is-selected", control === button);
+        });
+        if (existingReaction) {
+          const previous = card.querySelector(`[data-reaction="${existingReaction}"] .count`);
+          previous.textContent = String(Math.max(0, Number(previous.textContent || 0) - 1));
+        }
         const count = button.querySelector(".count");
         count.textContent = String(Number(count.textContent || 0) + 1);
+        localStorage.setItem(storageKey, reaction);
+        return;
+      }
+
+      let subscriberEmail = localStorage.getItem(subscriberEmailKey) || "";
+      if (!subscriberEmail) {
+        subscriberEmail = window.prompt("Enter the email you subscribed with to react.") || "";
+        subscriberEmail = subscriberEmail.trim().toLowerCase();
+      }
+
+      if (!subscriberEmail) {
+        if (status) {
+          status.textContent = "Subscribe first, then use that email to react.";
+          status.classList.add("is-error");
+        }
         return;
       }
 
@@ -97,14 +127,23 @@ function bindReactions() {
         const response = await fetch(`/api/field-notes/${noteId}/react`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reaction, previousReaction: existingReaction }),
+          body: JSON.stringify({ reaction, email: subscriberEmail }),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Reaction failed.");
+        localStorage.setItem(subscriberEmailKey, subscriberEmail);
+        localStorage.setItem(storageKey, data.viewerReaction || reaction);
+        card.querySelectorAll("[data-reaction]").forEach((control) => {
+          control.classList.toggle("is-selected", control.dataset.reaction === (data.viewerReaction || reaction));
+        });
         card.querySelector('[data-reaction="up"] .count').textContent = data.reactions.up;
+        card.querySelector('[data-reaction="down"] .count').textContent = data.reactions.down;
+        if (status) status.textContent = "Reaction counted.";
       } catch {
-        const count = button.querySelector(".count");
-        count.textContent = String(Number(count.textContent || 0) + 1);
+        if (status) {
+          status.textContent = "Subscribe first, then use that email to react.";
+          status.classList.add("is-error");
+        }
       }
     };
 
@@ -154,6 +193,7 @@ async function loadPublishedNotes() {
             <span class="like-control" role="button" tabindex="0" data-reaction="up" aria-label="Like"><span class="thumb">👍</span><span class="count">${note.reactions?.up || 0}</span></span>
             <span class="like-control" role="button" tabindex="0" data-reaction="down" aria-label="Dislike"><span class="thumb">👎</span><span class="count">${note.reactions?.down || 0}</span></span>
           </div>
+          <p class="reaction-status" data-reaction-status aria-live="polite"></p>
         </header>
         <div>
           <h3>${escapeHtml(note.title || `Field Note ${data.notes.length - index}`)}</h3>

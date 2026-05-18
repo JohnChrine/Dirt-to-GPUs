@@ -275,6 +275,7 @@ function publicSubscriber(subscriber) {
     updatedAt: subscriber.updatedAt,
     lastContactedAt: subscriber.lastContactedAt || null,
     messages: subscriber.messages || [],
+    reactions: subscriber.reactions || {},
   };
 }
 
@@ -289,7 +290,7 @@ function publicFieldNote(note) {
     createdAt: note.createdAt,
     updatedAt: note.updatedAt,
     publishedAt: note.publishedAt || null,
-    reactions: note.reactions || { up: 0, down: 0 },
+    reactions: reactionCounts(note),
   };
 }
 
@@ -304,8 +305,19 @@ function adminFieldNote(note) {
     createdAt: note.createdAt,
     updatedAt: note.updatedAt,
     publishedAt: note.publishedAt || null,
-    reactions: note.reactions || { up: 0, down: 0 },
+    reactions: reactionCounts(note),
+    reactionVotes: note.reactionVotes || {},
   };
+}
+
+function reactionCounts(note) {
+  const counts = { up: 0, down: 0 };
+  const votes = note.reactionVotes || {};
+  Object.values(votes).forEach((reaction) => {
+    if (reaction === "up" || reaction === "down") counts[reaction] += 1;
+  });
+
+  return counts;
 }
 
 async function handleApi(req, res, pathname) {
@@ -359,27 +371,50 @@ async function handleApi(req, res, pathname) {
   if (req.method === "POST" && reactionMatch) {
     const body = await readBody(req);
     const reaction = body.reaction === "down" ? "down" : body.reaction === "up" ? "up" : null;
-    const previousReaction = body.previousReaction === "down" ? "down" : body.previousReaction === "up" ? "up" : null;
+    const email = normalizeEmail(body.email);
     if (!reaction) {
       json(res, 400, { error: "Invalid reaction." });
       return;
     }
 
+    if (!isValidEmail(email)) {
+      json(res, 400, { error: "Enter the email you subscribed with to react." });
+      return;
+    }
+
     const store = await loadStore();
+    const subscriber = store.subscribers.find((item) => item.email === email && item.status === "active");
+    if (!subscriber) {
+      json(res, 403, { error: "Subscribe with that email before reacting." });
+      return;
+    }
+
     const note = store.fieldNotes.find((item) => item.id === reactionMatch[1] && item.status === "published");
     if (!note) {
       json(res, 404, { error: "Field note not found." });
       return;
     }
 
-    note.reactions = note.reactions || { up: 0, down: 0 };
-    if (previousReaction && previousReaction !== reaction) {
-      note.reactions[previousReaction] = Math.max(0, note.reactions[previousReaction] - 1);
-    }
-    note.reactions[reaction] += 1;
-    store.events.push({ type: `field_note_${reaction}`, noteId: note.id, at: new Date().toISOString() });
+    const now = new Date().toISOString();
+    note.reactionVotes = note.reactionVotes || {};
+    subscriber.reactions = subscriber.reactions || {};
+
+    const previousReaction = note.reactionVotes[subscriber.id] || subscriber.reactions[note.id] || null;
+    note.reactionVotes[subscriber.id] = reaction;
+    note.reactions = reactionCounts(note);
+    subscriber.reactions[note.id] = reaction;
+    subscriber.updatedAt = now;
+
+    store.events.push({
+      type: previousReaction && previousReaction !== reaction ? "field_note_reaction_changed" : `field_note_${reaction}`,
+      noteId: note.id,
+      subscriberId: subscriber.id,
+      reaction,
+      previousReaction,
+      at: now,
+    });
     await saveStore(store);
-    json(res, 200, { reactions: note.reactions });
+    json(res, 200, { reactions: note.reactions, viewerReaction: reaction });
     return;
   }
 
@@ -541,6 +576,8 @@ async function handleApi(req, res, pathname) {
       createdAt: now,
       updatedAt: now,
       publishedAt: status === "published" ? now : null,
+      reactions: { up: 0, down: 0 },
+      reactionVotes: {},
     };
     store.fieldNotes.unshift(note);
     store.events.push({ type: "field_note_created", noteId: note.id, at: now });
