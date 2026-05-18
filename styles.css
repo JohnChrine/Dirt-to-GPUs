@@ -544,20 +544,24 @@ article p,
 .about {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(320px, 0.58fr);
-  gap: clamp(28px, 5vw, 70px);
+  gap: clamp(36px, 5.5vw, 84px);
   align-items: start;
-  width: min(1560px, calc(100% - 40px));
+  width: min(1500px, calc(100% - 72px));
   max-width: none;
   margin-left: auto;
   margin-right: auto;
 }
 
 .about-copy {
-  max-width: 820px;
+  max-width: 860px;
 }
 
 .about p + p {
-  margin-top: 18px;
+  margin-top: 22px;
+}
+
+.about-copy p {
+  line-height: 1.58;
 }
 
 .experience-path {
@@ -664,6 +668,10 @@ article p,
   .note-list,
   .audience-list {
     grid-template-columns: 1fr;
+  }
+
+  .about {
+    width: min(100% - 40px, 760px);
   }
 
   .field-notes .section-heading {
