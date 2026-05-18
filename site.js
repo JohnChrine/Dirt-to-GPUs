@@ -96,6 +96,15 @@ function bindReactions() {
       }
 
       if (!card?.dataset.noteId) {
+        let subscriberEmail = localStorage.getItem(subscriberEmailKey) || "";
+        if (!subscriberEmail) {
+          subscriberEmail = window.prompt("Enter the email you subscribed with to react.") || "";
+          subscriberEmail = subscriberEmail.trim().toLowerCase();
+        }
+
+        if (!subscriberEmail) return;
+
+        localStorage.setItem(subscriberEmailKey, subscriberEmail);
         button.closest(".reaction-row")?.querySelectorAll("[data-reaction]").forEach((control) => {
           control.classList.toggle("is-selected", control === button);
         });
