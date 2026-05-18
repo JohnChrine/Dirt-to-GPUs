@@ -491,7 +491,11 @@ button {
 }
 
 .note-summary {
-  margin-bottom: 10px;
+  margin-bottom: 18px;
+  color: #f4efe6;
+  font-size: clamp(1.12rem, 1.55vw, 1.38rem);
+  font-weight: 800;
+  line-height: 1.32;
 }
 
 .note-body {
@@ -499,6 +503,7 @@ button {
   max-height: 3.4em;
   overflow: hidden;
   color: var(--muted);
+  white-space: pre-wrap;
 }
 
 .note-body::after {
@@ -599,6 +604,10 @@ article p,
 
 .about .post-feed p {
   font-size: clamp(0.98rem, 1.25vw, 1.18rem);
+}
+
+.about .post-feed .note-summary {
+  font-size: clamp(1.08rem, 1.35vw, 1.28rem);
 }
 
 .experience-path {
