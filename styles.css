@@ -653,6 +653,57 @@ article p,
   text-decoration: none;
 }
 
+.privacy-page {
+  min-height: 100vh;
+  width: min(960px, calc(100% - 64px));
+  display: flex;
+  align-items: center;
+  margin: 0 auto;
+  padding: clamp(72px, 10vw, 128px) 0;
+}
+
+.privacy-copy {
+  max-width: 840px;
+}
+
+.privacy-page h1 {
+  max-width: 760px;
+  margin: 0 0 22px;
+  color: #f4efe6;
+  font-size: clamp(3rem, 8vw, 7rem);
+  line-height: 0.92;
+  letter-spacing: 0;
+}
+
+.privacy-lede {
+  max-width: 700px;
+  margin: 0 0 38px;
+  color: #d8d0c2;
+  font-size: clamp(1.25rem, 2vw, 1.75rem);
+  line-height: 1.38;
+}
+
+.privacy-details {
+  display: grid;
+  gap: 18px;
+  max-width: 760px;
+  padding-top: 28px;
+  border-top: 1px solid rgba(244, 239, 230, 0.14);
+}
+
+.privacy-details p {
+  margin: 0;
+  color: var(--muted);
+  font-size: clamp(1rem, 1.25vw, 1.18rem);
+  line-height: 1.55;
+}
+
+.text-link {
+  display: inline-flex;
+  margin-top: 34px;
+  font-weight: 800;
+}
+
 .message-form-public {
   display: grid;
   gap: 14px;
@@ -692,6 +743,11 @@ article p,
 
   .about {
     width: min(100% - 40px, 760px);
+  }
+
+  .privacy-page {
+    width: min(100% - 40px, 760px);
+    align-items: flex-start;
   }
 
   .field-notes .section-heading {
