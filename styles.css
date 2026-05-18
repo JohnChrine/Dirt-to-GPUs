@@ -543,17 +543,17 @@ article p,
 
 .about {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(320px, 0.58fr);
-  gap: clamp(36px, 5.5vw, 84px);
+  grid-template-columns: minmax(520px, 0.92fr) minmax(460px, 0.78fr);
+  gap: clamp(44px, 5.8vw, 92px);
   align-items: start;
-  width: min(1500px, calc(100% - 72px));
+  width: min(1540px, calc(100% - 72px));
   max-width: none;
   margin-left: auto;
   margin-right: auto;
 }
 
 .about-copy {
-  max-width: 860px;
+  max-width: 800px;
 }
 
 .about p + p {
@@ -562,6 +562,26 @@ article p,
 
 .about-copy p {
   line-height: 1.58;
+}
+
+.about .post-feed {
+  align-self: start;
+  max-height: 900px;
+  margin-top: 10px;
+}
+
+.about .post-feed article {
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 18px;
+  padding: 20px 22px;
+}
+
+.about .post-feed h3 {
+  font-size: clamp(1.28rem, 1.65vw, 1.75rem);
+}
+
+.about .post-feed p {
+  font-size: clamp(0.98rem, 1.25vw, 1.18rem);
 }
 
 .experience-path {
