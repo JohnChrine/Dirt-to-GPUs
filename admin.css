@@ -156,6 +156,19 @@ h1 {
   gap: 10px;
 }
 
+.backup-status {
+  flex-basis: 100%;
+  min-height: 1.2em;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: right;
+}
+
+.backup-status.is-error {
+  color: var(--danger);
+}
+
 .stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

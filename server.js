@@ -310,6 +310,35 @@ function adminFieldNote(note) {
   };
 }
 
+function exportStore(store) {
+  return {
+    schemaVersion: 1,
+    capturedAt: new Date().toISOString(),
+    store,
+  };
+}
+
+function normalizeRestoredStore(payload, currentStore) {
+  const candidate = payload.store || payload;
+  const subscribers = candidate.subscribers?.subscribers || candidate.subscribers || [];
+  const fieldNotes = candidate.fieldNotes?.notes || candidate.fieldNotes || [];
+  const inboundMessages = candidate.messages?.messages || candidate.inboundMessages || [];
+  const events = candidate.events?.events || candidate.events || [];
+  const settings = candidate.settings || currentStore.settings || defaultStore().settings;
+
+  if (!Array.isArray(subscribers) || !Array.isArray(fieldNotes) || !Array.isArray(inboundMessages) || !Array.isArray(events)) {
+    throw new Error("Backup file does not look like a From Dirt to GPUs backup.");
+  }
+
+  return {
+    subscribers,
+    inboundMessages,
+    fieldNotes,
+    settings,
+    events,
+  };
+}
+
 function reactionCounts(note) {
   const counts = { up: 0, down: 0 };
   const votes = note.reactionVotes || {};
@@ -552,6 +581,39 @@ async function handleApi(req, res, pathname) {
         .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
         .map(adminFieldNote),
     });
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/admin/backup") {
+    const store = await loadStore();
+    json(res, 200, exportStore(store));
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/admin/restore") {
+    const body = await readBody(req);
+    if (body.confirmation !== "RESTORE") {
+      json(res, 400, { error: "Type RESTORE to confirm." });
+      return;
+    }
+
+    try {
+      const currentStore = await loadStore();
+      const restoredStore = normalizeRestoredStore(body.backup || body, currentStore);
+      restoredStore.events.push({
+        type: "backup_restored",
+        at: new Date().toISOString(),
+      });
+      await saveStore(restoredStore);
+      json(res, 200, {
+        ok: true,
+        subscribers: restoredStore.subscribers.length,
+        fieldNotes: restoredStore.fieldNotes.length,
+        messages: restoredStore.inboundMessages.length,
+      });
+    } catch (error) {
+      json(res, 400, { error: error.message || "Could not restore backup." });
+    }
     return;
   }
 

@@ -10,6 +10,10 @@ const refreshButton = document.querySelector("[data-refresh]");
 const logoutButton = document.querySelector("[data-logout]");
 const exportJsonButton = document.querySelector("[data-export-json]");
 const exportCsvButton = document.querySelector("[data-export-csv]");
+const backupJsonButton = document.querySelector("[data-backup-json]");
+const restoreJsonButton = document.querySelector("[data-restore-json]");
+const restoreFileInput = document.querySelector("[data-restore-file]");
+const backupStatus = document.querySelector("[data-backup-status]");
 const noteList = document.querySelector("[data-note-list]");
 const noteForm = document.querySelector("[data-note-form]");
 const newNoteButton = document.querySelector("[data-new-note]");
@@ -256,6 +260,11 @@ function downloadFile(filename, contents, type) {
   URL.revokeObjectURL(url);
 }
 
+function setBackupStatus(message, isError = false) {
+  backupStatus.textContent = message;
+  backupStatus.classList.toggle("is-error", isError);
+}
+
 function exportCsv() {
   const headers = ["email", "status", "source", "createdAt", "updatedAt", "lastContactedAt", "notes"];
   const escapeCell = (value) => `"${String(value || "").replaceAll('"', '""')}"`;
@@ -391,6 +400,44 @@ exportJsonButton.addEventListener("click", () => {
   downloadFile("from-dirt-to-gpus-subscribers.json", JSON.stringify(subscribers, null, 2), "application/json");
 });
 exportCsvButton.addEventListener("click", exportCsv);
+backupJsonButton.addEventListener("click", async () => {
+  try {
+    const backup = await api("/api/admin/backup");
+    const stamp = new Date().toISOString().replaceAll(":", "-").slice(0, 19);
+    downloadFile(`from-dirt-to-gpus-backup-${stamp}.json`, JSON.stringify(backup, null, 2), "application/json");
+    setBackupStatus("Full backup downloaded.");
+  } catch (error) {
+    setBackupStatus(error.message, true);
+  }
+});
+restoreJsonButton.addEventListener("click", () => {
+  restoreFileInput.click();
+});
+restoreFileInput.addEventListener("change", async () => {
+  const file = restoreFileInput.files?.[0];
+  restoreFileInput.value = "";
+  if (!file) return;
+
+  const confirmed = window.confirm("Restore this backup? This replaces current subscribers, notes, messages, and events.");
+  if (!confirmed) return;
+
+  try {
+    const backup = JSON.parse(await file.text());
+    const result = await api("/api/admin/restore", {
+      method: "POST",
+      body: JSON.stringify({ confirmation: "RESTORE", backup }),
+    });
+    setBackupStatus(`Restored ${result.subscribers} subscribers and ${result.fieldNotes} notes.`);
+    selectedId = null;
+    selectedNoteId = null;
+    await loadSubscribers();
+    await loadEvents();
+    await loadMessages();
+    await loadNotes();
+  } catch (error) {
+    setBackupStatus(error.message, true);
+  }
+});
 newNoteButton.addEventListener("click", resetNoteForm);
 noteForm.addEventListener("submit", async (event) => {
   event.preventDefault();

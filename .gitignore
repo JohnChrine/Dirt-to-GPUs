@@ -1,4 +1,5 @@
 data/subscribers.json
 data/*.json
+data/live-backups/
 node_modules/
 .env

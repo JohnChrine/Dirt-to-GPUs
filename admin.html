@@ -33,9 +33,13 @@
           <div class="header-actions">
             <a class="button-link" href="/">View site</a>
             <button type="button" data-refresh>Refresh</button>
-            <button type="button" data-export-json>Export JSON</button>
+            <button type="button" data-export-json>Export subscribers</button>
+            <button type="button" data-backup-json>Backup all data</button>
+            <button type="button" data-restore-json>Restore backup</button>
+            <input data-restore-file type="file" accept="application/json,.json" hidden>
             <button type="button" data-export-csv>Export CSV</button>
             <button type="button" data-logout>Logout</button>
+            <p class="backup-status" data-backup-status aria-live="polite"></p>
           </div>
         </header>
 
@@ -113,9 +117,9 @@
             <h2>Admin-only controls for v1</h2>
           </div>
           <ul>
-            <li>Subscriber data is stored locally in <code>data/subscribers.json</code>.</li>
-            <li>Set <code>FDTG_ADMIN_PASSWORD</code> before putting this online.</li>
-            <li>DMs are saved as local drafts for now. Later, we can connect this to your brand email.</li>
+            <li>Use <strong>Backup all data</strong> before any deployment or storage change.</li>
+            <li>Railway must use a persistent volume mounted at <code>/data</code>.</li>
+            <li>DMs are saved as admin inbox records for now. Later, we can connect this to your brand email.</li>
           </ul>
         </section>
 
