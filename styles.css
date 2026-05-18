@@ -543,17 +543,17 @@ article p,
 
 .about {
   display: grid;
-  grid-template-columns: minmax(520px, 0.92fr) minmax(460px, 0.78fr);
-  gap: clamp(44px, 5.8vw, 92px);
+  grid-template-columns: minmax(560px, 1fr) minmax(520px, 0.82fr);
+  gap: clamp(44px, 4.8vw, 76px);
   align-items: start;
-  width: min(1540px, calc(100% - 72px));
+  width: min(1720px, calc(100% - 120px));
   max-width: none;
   margin-left: auto;
   margin-right: auto;
 }
 
 .about-copy {
-  max-width: 800px;
+  max-width: 920px;
 }
 
 .about p + p {
@@ -566,14 +566,14 @@ article p,
 
 .about .post-feed {
   align-self: start;
-  max-height: 900px;
+  max-height: 960px;
   margin-top: 10px;
 }
 
 .about .post-feed article {
-  grid-template-columns: 150px minmax(0, 1fr);
-  gap: 18px;
-  padding: 20px 22px;
+  grid-template-columns: 145px minmax(0, 1fr);
+  gap: 22px;
+  padding: 22px 24px;
 }
 
 .about .post-feed h3 {
