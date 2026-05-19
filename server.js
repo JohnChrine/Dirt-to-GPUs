@@ -241,19 +241,34 @@ async function sendSmtpMail({ to, subject, text }) {
 
   socket.on("data", (chunk) => {
     buffer += chunk;
-    const lines = buffer.split(/\r?\n/);
-    buffer = lines.pop() || "";
-
-    lines.forEach((line) => {
-      if (/^\d{3} /.test(line) && pending.length) pending.shift()(line);
-    });
+    flushSmtpResponses();
   });
 
   socket.on("error", (error) => {
     while (pending.length) pending.shift()(`500 ${error.message}`);
   });
 
-  const readResponse = () => new Promise((resolve) => pending.push(resolve));
+  function flushSmtpResponses() {
+    const lines = buffer.split(/\r?\n/);
+    buffer = lines.pop() || "";
+
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+      const line = lines[index];
+      const match = line.match(/^(\d{3}) /);
+      if (match && pending.length) {
+        const code = match[1];
+        const start = Math.max(0, lines.findIndex((candidate) => candidate.startsWith(`${code}-`) || candidate.startsWith(`${code} `)));
+        pending.shift()(lines.slice(start, index + 1).join("\n"));
+        lines.splice(0, index + 1);
+        index = lines.length;
+      }
+    }
+  }
+
+  const readResponse = () => new Promise((resolve) => {
+    pending.push(resolve);
+    flushSmtpResponses();
+  });
   const command = async (line, expected = /^[23]/) => {
     socket.write(`${line}\r\n`);
     const response = await readResponse();

@@ -500,7 +500,10 @@ emailNoteButton.addEventListener("click", async () => {
 
   try {
     const result = await api(`/api/admin/field-notes/${selectedNoteId}/email`, { method: "POST" });
-    noteEmailStatus.textContent = `Sent to ${result.sentCount} subscriber${result.sentCount === 1 ? "" : "s"}.`;
+    noteEmailStatus.textContent = result.failureCount
+      ? `Sent to ${result.sentCount}; ${result.failureCount} failed.`
+      : `Sent to ${result.sentCount} subscriber${result.sentCount === 1 ? "" : "s"}.`;
+    noteEmailStatus.classList.toggle("is-error", Boolean(result.failureCount));
     await loadNotes();
     await loadEvents();
   } catch (error) {
