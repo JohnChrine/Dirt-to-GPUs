@@ -3,6 +3,7 @@ const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
+const tls = require("node:tls");
 
 const root = __dirname;
 const dataDir = process.env.FDTG_DATA_DIR || path.join(root, "data");
@@ -15,6 +16,11 @@ const host = process.env.HOST || (process.env.NODE_ENV === "production" ? "0.0.0
 const adminUsername = process.env.FDTG_ADMIN_USERNAME || "george";
 const adminPassword = process.env.FDTG_ADMIN_PASSWORD || "local-admin";
 const sessionSecret = process.env.FDTG_SESSION_SECRET || crypto.randomBytes(32).toString("hex");
+const emailHost = process.env.FDTG_EMAIL_HOST || "smtp.gmail.com";
+const emailPort = Number(process.env.FDTG_EMAIL_PORT || 465);
+const emailUser = process.env.FDTG_EMAIL_USER || "";
+const emailPassword = process.env.FDTG_EMAIL_APP_PASSWORD || process.env.FDTG_EMAIL_PASSWORD || "";
+const emailFromName = process.env.FDTG_EMAIL_FROM_NAME || "From Dirt to GPUs";
 const sessions = new Map();
 
 const mimeTypes = {
@@ -187,6 +193,101 @@ async function saveStore(store) {
   await fs.writeFile(dataFile, JSON.stringify(store, null, 2));
 }
 
+function isEmailConfigured() {
+  return Boolean(emailHost && emailPort && emailUser && emailPassword);
+}
+
+function encodeHeader(value) {
+  return String(value || "").replace(/[\r\n]/g, " ").trim();
+}
+
+function formatEmailAddress(name, email) {
+  const safeName = encodeHeader(name).replaceAll('"', "'");
+  return `"${safeName}" <${email}>`;
+}
+
+function dotStuff(value) {
+  return String(value || "")
+    .replace(/\r?\n/g, "\r\n")
+    .replace(/^\./gm, "..");
+}
+
+function buildFieldNoteEmail(note) {
+  const title = note.title || "New field note";
+  const body = [
+    note.summary || "",
+    note.body || "",
+    "",
+    "You are receiving this because you subscribed to From Dirt to GPUs.",
+    "Want out later? Reply and ask to be removed.",
+  ].filter(Boolean).join("\n\n");
+
+  return {
+    subject: `New field note: ${title}`,
+    body,
+  };
+}
+
+async function sendSmtpMail({ to, subject, text }) {
+  if (!isEmailConfigured()) {
+    throw new Error("Email is not configured. Add Gmail SMTP variables in Railway first.");
+  }
+
+  const socket = tls.connect({ host: emailHost, port: emailPort, servername: emailHost });
+  socket.setEncoding("utf8");
+
+  let buffer = "";
+  const pending = [];
+
+  socket.on("data", (chunk) => {
+    buffer += chunk;
+    const lines = buffer.split(/\r?\n/);
+    buffer = lines.pop() || "";
+
+    lines.forEach((line) => {
+      if (/^\d{3} /.test(line) && pending.length) pending.shift()(line);
+    });
+  });
+
+  socket.on("error", (error) => {
+    while (pending.length) pending.shift()(`500 ${error.message}`);
+  });
+
+  const readResponse = () => new Promise((resolve) => pending.push(resolve));
+  const command = async (line, expected = /^[23]/) => {
+    socket.write(`${line}\r\n`);
+    const response = await readResponse();
+    if (!expected.test(response)) throw new Error(`Email server rejected command: ${response}`);
+    return response;
+  };
+
+  const greeting = await readResponse();
+  if (!/^220/.test(greeting)) throw new Error(`Email server rejected connection: ${greeting}`);
+
+  await command("EHLO fromdirttogpus.local");
+  await command("AUTH LOGIN", /^334/);
+  await command(Buffer.from(emailUser).toString("base64"), /^334/);
+  await command(Buffer.from(emailPassword).toString("base64"), /^235/);
+  await command(`MAIL FROM:<${emailUser}>`);
+  await command(`RCPT TO:<${to}>`);
+  await command("DATA", /^354/);
+
+  const message = [
+    `From: ${formatEmailAddress(emailFromName, emailUser)}`,
+    `To: ${to}`,
+    `Subject: ${encodeHeader(subject)}`,
+    "MIME-Version: 1.0",
+    "Content-Type: text/plain; charset=utf-8",
+    "",
+    dotStuff(text),
+    ".",
+  ].join("\r\n");
+
+  await command(message);
+  socket.write("QUIT\r\n");
+  socket.end();
+}
+
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
@@ -307,6 +408,8 @@ function adminFieldNote(note) {
     publishedAt: note.publishedAt || null,
     reactions: reactionCounts(note),
     reactionVotes: note.reactionVotes || {},
+    emailSentAt: note.emailSentAt || null,
+    emailSendCount: note.emailSendCount || 0,
   };
 }
 
@@ -580,6 +683,7 @@ async function handleApi(req, res, pathname) {
       notes: store.fieldNotes
         .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
         .map(adminFieldNote),
+      emailConfigured: isEmailConfigured(),
     });
     return;
   }
@@ -683,6 +787,65 @@ async function handleApi(req, res, pathname) {
       json(res, 200, { ok: true });
       return;
     }
+  }
+
+  const noteEmailMatch = pathname.match(/^\/api\/admin\/field-notes\/([^/]+)\/email$/);
+  if (req.method === "POST" && noteEmailMatch) {
+    if (!isEmailConfigured()) {
+      json(res, 400, { error: "Email is not configured. Add Gmail app password variables in Railway first." });
+      return;
+    }
+
+    const store = await loadStore();
+    const note = store.fieldNotes.find((item) => item.id === noteEmailMatch[1]);
+    if (!note) {
+      json(res, 404, { error: "Field note not found." });
+      return;
+    }
+
+    if (note.status !== "published") {
+      json(res, 400, { error: "Publish the note before emailing subscribers." });
+      return;
+    }
+
+    const activeSubscribers = store.subscribers.filter((subscriber) => subscriber.status === "active" && isValidEmail(subscriber.email));
+    if (!activeSubscribers.length) {
+      json(res, 400, { error: "No active subscribers to email." });
+      return;
+    }
+
+    const email = buildFieldNoteEmail(note);
+    const failures = [];
+    for (const subscriber of activeSubscribers) {
+      try {
+        await sendSmtpMail({ to: subscriber.email, subject: email.subject, text: email.body });
+      } catch (error) {
+        failures.push({ email: subscriber.email, error: error.message });
+      }
+    }
+
+    const sentCount = activeSubscribers.length - failures.length;
+    const sentAt = new Date().toISOString();
+    note.emailSentAt = sentAt;
+    note.emailSendCount = (note.emailSendCount || 0) + sentCount;
+    note.updatedAt = sentAt;
+    store.events.push({
+      type: "field_note_email_sent",
+      noteId: note.id,
+      sentCount,
+      failureCount: failures.length,
+      at: sentAt,
+    });
+    await saveStore(store);
+
+    json(res, failures.length ? 207 : 200, {
+      ok: failures.length === 0,
+      sentCount,
+      failureCount: failures.length,
+      failures,
+      note: adminFieldNote(note),
+    });
+    return;
   }
 
   if (pathname === "/api/admin/settings") {

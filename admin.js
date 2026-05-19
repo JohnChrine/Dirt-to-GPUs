@@ -18,6 +18,8 @@ const noteList = document.querySelector("[data-note-list]");
 const noteForm = document.querySelector("[data-note-form]");
 const newNoteButton = document.querySelector("[data-new-note]");
 const deleteNoteButton = document.querySelector("[data-delete-note]");
+const emailNoteButton = document.querySelector("[data-email-note]");
+const noteEmailStatus = document.querySelector("[data-note-email-status]");
 const settingsForm = document.querySelector("[data-settings-form]");
 const sourceList = document.querySelector("[data-source-list]");
 const eventList = document.querySelector("[data-event-list]");
@@ -28,6 +30,7 @@ let subscribers = [];
 let selectedId = null;
 let fieldNotes = [];
 let selectedNoteId = null;
+let emailConfigured = false;
 
 function escapeHtml(value) {
   return String(value || "")
@@ -296,6 +299,9 @@ function resetNoteForm() {
   noteForm.reset();
   noteForm.elements.status.value = "draft";
   deleteNoteButton.hidden = true;
+  emailNoteButton.hidden = true;
+  noteEmailStatus.textContent = "";
+  noteEmailStatus.classList.remove("is-error");
   renderNotes();
 }
 
@@ -325,6 +331,14 @@ function renderNotes() {
       noteForm.elements.body.value = note.body || "";
       noteForm.elements.status.value = note.status || "draft";
       deleteNoteButton.hidden = false;
+      emailNoteButton.hidden = note.status !== "published";
+      emailNoteButton.disabled = !emailConfigured;
+      noteEmailStatus.textContent = note.emailSentAt
+        ? `Last emailed ${formatDate(note.emailSentAt)}.`
+        : emailConfigured
+          ? ""
+          : "Email sender not configured yet.";
+      noteEmailStatus.classList.toggle("is-error", !emailConfigured);
       renderNotes();
     });
   });
@@ -333,6 +347,7 @@ function renderNotes() {
 async function loadNotes() {
   const data = await api("/api/admin/field-notes");
   fieldNotes = data.notes;
+  emailConfigured = Boolean(data.emailConfigured);
   renderNotes();
 }
 
@@ -463,6 +478,31 @@ noteForm.addEventListener("submit", async (event) => {
   }
 
   await loadNotes();
+  const savedNote = fieldNotes.find((note) => note.id === selectedNoteId) || fieldNotes[0];
+  if (savedNote) selectedNoteId = savedNote.id;
+  emailNoteButton.hidden = savedNote?.status !== "published";
+});
+emailNoteButton.addEventListener("click", async () => {
+  if (!selectedNoteId) return;
+  const note = fieldNotes.find((item) => item.id === selectedNoteId);
+  const confirmed = window.confirm(`Email "${note?.title || "this field note"}" to all active subscribers?`);
+  if (!confirmed) return;
+
+  noteEmailStatus.textContent = "Sending...";
+  noteEmailStatus.classList.remove("is-error");
+  emailNoteButton.disabled = true;
+
+  try {
+    const result = await api(`/api/admin/field-notes/${selectedNoteId}/email`, { method: "POST" });
+    noteEmailStatus.textContent = `Sent to ${result.sentCount} subscriber${result.sentCount === 1 ? "" : "s"}.`;
+    await loadNotes();
+    await loadEvents();
+  } catch (error) {
+    noteEmailStatus.textContent = error.message;
+    noteEmailStatus.classList.add("is-error");
+  } finally {
+    emailNoteButton.disabled = !emailConfigured;
+  }
 });
 deleteNoteButton.addEventListener("click", async () => {
   if (!selectedNoteId) return;
