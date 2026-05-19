@@ -299,9 +299,11 @@ function resetNoteForm() {
   noteForm.reset();
   noteForm.elements.status.value = "draft";
   deleteNoteButton.hidden = true;
-  emailNoteButton.hidden = true;
-  noteEmailStatus.textContent = "";
-  noteEmailStatus.classList.remove("is-error");
+  emailNoteButton.disabled = true;
+  noteEmailStatus.textContent = emailConfigured
+    ? "Select a published note to email subscribers."
+    : "Email sender not configured yet.";
+  noteEmailStatus.classList.toggle("is-error", !emailConfigured);
   renderNotes();
 }
 
@@ -331,12 +333,13 @@ function renderNotes() {
       noteForm.elements.body.value = note.body || "";
       noteForm.elements.status.value = note.status || "draft";
       deleteNoteButton.hidden = false;
-      emailNoteButton.hidden = note.status !== "published";
-      emailNoteButton.disabled = !emailConfigured;
+      emailNoteButton.disabled = !emailConfigured || note.status !== "published";
       noteEmailStatus.textContent = note.emailSentAt
         ? `Last emailed ${formatDate(note.emailSentAt)}.`
-        : emailConfigured
-          ? ""
+        : note.status !== "published"
+          ? "Publish this note before emailing subscribers."
+          : emailConfigured
+            ? "Ready to email active subscribers."
           : "Email sender not configured yet.";
       noteEmailStatus.classList.toggle("is-error", !emailConfigured);
       renderNotes();
@@ -480,7 +483,10 @@ noteForm.addEventListener("submit", async (event) => {
   await loadNotes();
   const savedNote = fieldNotes.find((note) => note.id === selectedNoteId) || fieldNotes[0];
   if (savedNote) selectedNoteId = savedNote.id;
-  emailNoteButton.hidden = savedNote?.status !== "published";
+  emailNoteButton.disabled = !emailConfigured || savedNote?.status !== "published";
+  noteEmailStatus.textContent = savedNote?.status === "published"
+    ? "Ready to email active subscribers."
+    : "Publish this note before emailing subscribers.";
 });
 emailNoteButton.addEventListener("click", async () => {
   if (!selectedNoteId) return;
