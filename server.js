@@ -245,7 +245,8 @@ async function sendSmtpMail({ to, subject, text }) {
   });
 
   socket.on("error", (error) => {
-    while (pending.length) pending.shift()(`500 ${error.message}`);
+    const details = [error.code, error.message].filter(Boolean).join(" ") || "socket error";
+    while (pending.length) pending.shift()(`500 ${details}`);
   });
 
   function flushSmtpResponses() {
@@ -841,11 +842,13 @@ async function handleApi(req, res, pathname) {
 
     const sentCount = activeSubscribers.length - failures.length;
     const sentAt = new Date().toISOString();
-    note.emailSentAt = sentAt;
-    note.emailSendCount = (note.emailSendCount || 0) + sentCount;
-    note.updatedAt = sentAt;
+    if (sentCount > 0) {
+      note.emailSentAt = sentAt;
+      note.emailSendCount = (note.emailSendCount || 0) + sentCount;
+      note.updatedAt = sentAt;
+    }
     store.events.push({
-      type: "field_note_email_sent",
+      type: sentCount > 0 ? "field_note_email_sent" : "field_note_email_failed",
       noteId: note.id,
       sentCount,
       failureCount: failures.length,
