@@ -1,6 +1,7 @@
 const crypto = require("node:crypto");
 const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
+const https = require("node:https");
 const http = require("node:http");
 const net = require("node:net");
 const path = require("node:path");
@@ -22,6 +23,8 @@ const emailPort = Number(process.env.FDTG_EMAIL_PORT || 465);
 const emailUser = process.env.FDTG_EMAIL_USER || "";
 const emailPassword = process.env.FDTG_EMAIL_APP_PASSWORD || process.env.FDTG_EMAIL_PASSWORD || "";
 const emailFromName = process.env.FDTG_EMAIL_FROM_NAME || "From Dirt to GPUs";
+const resendApiKey = process.env.FDTG_RESEND_API_KEY || "";
+const resendFrom = process.env.FDTG_RESEND_FROM || "";
 const sessions = new Map();
 
 const mimeTypes = {
@@ -195,7 +198,15 @@ async function saveStore(store) {
 }
 
 function isEmailConfigured() {
+  return isResendConfigured() || isSmtpConfigured();
+}
+
+function isSmtpConfigured() {
   return Boolean(emailHost && emailPort && emailUser && emailPassword);
+}
+
+function isResendConfigured() {
+  return Boolean(resendApiKey && resendFrom);
 }
 
 function encodeHeader(value) {
@@ -230,7 +241,7 @@ function buildFieldNoteEmail(note) {
 }
 
 async function sendSmtpMail({ to, subject, text }) {
-  if (!isEmailConfigured()) {
+  if (!isSmtpConfigured()) {
     throw new Error("Email is not configured. Add Gmail SMTP variables in Railway first.");
   }
 
@@ -330,6 +341,70 @@ async function sendSmtpMail({ to, subject, text }) {
   await command(message);
   socket.write("QUIT\r\n");
   socket.end();
+}
+
+async function sendResendMail({ to, subject, text }) {
+  if (!isResendConfigured()) {
+    throw new Error("Resend email is not configured. Add FDTG_RESEND_API_KEY and FDTG_RESEND_FROM in Railway first.");
+  }
+
+  const payload = JSON.stringify({
+    from: resendFrom,
+    to: [to],
+    subject,
+    text,
+    reply_to: emailUser || undefined,
+  });
+
+  const response = await new Promise((resolve, reject) => {
+    const request = https.request({
+      hostname: "api.resend.com",
+      path: "/emails",
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(payload),
+      },
+      timeout: 20000,
+    }, (res) => {
+      const chunks = [];
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () => {
+        resolve({
+          statusCode: res.statusCode || 0,
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
+      });
+    });
+
+    request.on("timeout", () => {
+      request.destroy(new Error("Resend request timed out."));
+    });
+    request.on("error", reject);
+    request.write(payload);
+    request.end();
+  });
+
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    let message = response.body;
+    try {
+      const body = JSON.parse(response.body);
+      message = body.message || body.error || response.body;
+    } catch {
+      // Keep the raw response body when Resend returns plain text.
+    }
+    throw new Error(`Resend rejected email: ${response.statusCode} ${message}`);
+  }
+}
+
+async function sendEmail({ to, subject, text }) {
+  if (isResendConfigured()) {
+    await sendResendMail({ to, subject, text });
+    return;
+  }
+
+  await sendSmtpMail({ to, subject, text });
 }
 
 function normalizeEmail(email) {
@@ -862,7 +937,7 @@ async function handleApi(req, res, pathname) {
     const failures = [];
     for (const subscriber of activeSubscribers) {
       try {
-        await sendSmtpMail({ to: subscriber.email, subject: email.subject, text: email.body });
+        await sendEmail({ to: subscriber.email, subject: email.subject, text: email.body });
       } catch (error) {
         failures.push({ email: subscriber.email, error: error.message });
       }
