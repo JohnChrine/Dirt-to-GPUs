@@ -2,6 +2,7 @@ const crypto = require("node:crypto");
 const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const http = require("node:http");
+const net = require("node:net");
 const path = require("node:path");
 const tls = require("node:tls");
 
@@ -233,21 +234,28 @@ async function sendSmtpMail({ to, subject, text }) {
     throw new Error("Email is not configured. Add Gmail SMTP variables in Railway first.");
   }
 
-  const socket = tls.connect({ host: emailHost, port: emailPort, servername: emailHost });
-  socket.setEncoding("utf8");
-
+  let socket;
   let buffer = "";
   const pending = [];
 
-  socket.on("data", (chunk) => {
-    buffer += chunk;
-    flushSmtpResponses();
-  });
+  function attachSocket(nextSocket) {
+    socket = nextSocket;
+    socket.setEncoding("utf8");
+    socket.setTimeout(20000, () => {
+      while (pending.length) pending.shift()("500 ETIMEDOUT SMTP connection timed out");
+      socket.destroy();
+    });
 
-  socket.on("error", (error) => {
-    const details = [error.code, error.message].filter(Boolean).join(" ") || "socket error";
-    while (pending.length) pending.shift()(`500 ${details}`);
-  });
+    socket.on("data", (chunk) => {
+      buffer += chunk;
+      flushSmtpResponses();
+    });
+
+    socket.on("error", (error) => {
+      const details = [error.code, error.message].filter(Boolean).join(" ") || "socket error";
+      while (pending.length) pending.shift()(`500 ${details}`);
+    });
+  }
 
   function flushSmtpResponses() {
     const lines = buffer.split(/\r?\n/);
@@ -277,10 +285,30 @@ async function sendSmtpMail({ to, subject, text }) {
     return response;
   };
 
+  if (emailPort === 465) {
+    attachSocket(tls.connect({ host: emailHost, port: emailPort, servername: emailHost }));
+  } else {
+    attachSocket(net.connect({ host: emailHost, port: emailPort }));
+  }
+
   const greeting = await readResponse();
   if (!/^220/.test(greeting)) throw new Error(`Email server rejected connection: ${greeting}`);
 
   await command("EHLO fromdirttogpus.local");
+
+  if (emailPort !== 465) {
+    await command("STARTTLS", /^220/);
+    socket.removeAllListeners("data");
+    socket.removeAllListeners("error");
+    socket.removeAllListeners("timeout");
+    buffer = "";
+    attachSocket(await new Promise((resolve, reject) => {
+      const secureSocket = tls.connect({ socket, servername: emailHost }, () => resolve(secureSocket));
+      secureSocket.once("error", reject);
+    }));
+    await command("EHLO fromdirttogpus.local");
+  }
+
   await command("AUTH LOGIN", /^334/);
   await command(Buffer.from(emailUser).toString("base64"), /^334/);
   await command(Buffer.from(emailPassword).toString("base64"), /^235/);
