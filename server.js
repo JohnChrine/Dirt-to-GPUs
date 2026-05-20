@@ -224,19 +224,86 @@ function dotStuff(value) {
     .replace(/^\./gm, "..");
 }
 
+function cleanEmailText(value) {
+  return String(value || "").replace(/\uFFFD/g, "'");
+}
+
+function escapeHtml(value) {
+  return cleanEmailText(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function htmlParagraphs(value) {
+  return cleanEmailText(value)
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
 function buildFieldNoteEmail(note) {
-  const title = note.title || "New field note";
+  const title = cleanEmailText(note.title || "New field note");
+  const category = cleanEmailText(note.category || "Field Note");
+  const summary = cleanEmailText(note.summary || "");
+  const bodyText = cleanEmailText(note.body || "");
+  const oneLiner = "Fresh from the field: a short note on the work, pressure, and mindset behind the build.";
   const body = [
-    note.summary || "",
-    note.body || "",
+    oneLiner,
     "",
+    title,
+    summary,
+    bodyText,
+    "",
+    "---",
     "You are receiving this because you subscribed to From Dirt to GPUs.",
     "Want out later? Reply and ask to be removed.",
   ].filter(Boolean).join("\n\n");
+  const html = `<!doctype html>
+<html>
+  <body style="margin:0; padding:0; background:#081110; color:#f7f1e7; font-family:Arial, Helvetica, sans-serif;">
+    <div style="display:none; max-height:0; overflow:hidden; opacity:0;">${escapeHtml(oneLiner)}</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#081110; padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:720px;">
+            <tr>
+              <td style="padding:0 0 18px;">
+                <div style="color:#82d8ff; font-size:12px; font-weight:800; letter-spacing:2px; text-transform:uppercase;">From Dirt to GPUs</div>
+                <h1 style="margin:10px 0 10px; color:#fff8eb; font-size:32px; line-height:1.12; font-weight:900;">${escapeHtml(title)}</h1>
+                <p style="margin:0; color:#cce3df; font-size:16px; line-height:1.55;">${escapeHtml(oneLiner)}</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="border:1px solid rgba(130,216,255,0.22); background:#101b1a; padding:28px; border-radius:8px;">
+                <div style="color:#82d8ff; font-size:12px; font-weight:800; letter-spacing:1.7px; text-transform:uppercase; margin-bottom:14px;">${escapeHtml(category)}</div>
+                ${summary ? `<p style="margin:0 0 22px; color:#fff8eb; font-size:20px; line-height:1.45; font-weight:800;">${escapeHtml(summary)}</p>` : ""}
+                <div style="color:#f3eadc; font-size:17px; line-height:1.72;">
+                  ${htmlParagraphs(bodyText)}
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:18px 0 0; color:#9fb6b2; font-size:13px; line-height:1.55;">
+                <p style="margin:0;">You are receiving this because you subscribed to From Dirt to GPUs.</p>
+                <p style="margin:6px 0 0;">Want out later? Reply and ask to be removed.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
 
   return {
     subject: `New field note: ${title}`,
     body,
+    html,
   };
 }
 
@@ -343,7 +410,7 @@ async function sendSmtpMail({ to, subject, text }) {
   socket.end();
 }
 
-async function sendResendMail({ to, subject, text }) {
+async function sendResendMail({ to, subject, text, html }) {
   if (!isResendConfigured()) {
     throw new Error("Resend email is not configured. Add FDTG_RESEND_API_KEY and FDTG_RESEND_FROM in Railway first.");
   }
@@ -353,6 +420,7 @@ async function sendResendMail({ to, subject, text }) {
     to: [to],
     subject,
     text,
+    html,
     reply_to: emailUser || undefined,
   });
 
@@ -398,9 +466,9 @@ async function sendResendMail({ to, subject, text }) {
   }
 }
 
-async function sendEmail({ to, subject, text }) {
+async function sendEmail({ to, subject, text, html }) {
   if (isResendConfigured()) {
-    await sendResendMail({ to, subject, text });
+    await sendResendMail({ to, subject, text, html });
     return;
   }
 
@@ -937,7 +1005,7 @@ async function handleApi(req, res, pathname) {
     const failures = [];
     for (const subscriber of activeSubscribers) {
       try {
-        await sendEmail({ to: subscriber.email, subject: email.subject, text: email.body });
+        await sendEmail({ to: subscriber.email, subject: email.subject, text: email.body, html: email.html });
       } catch (error) {
         failures.push({ email: subscriber.email, error: error.message });
       }
