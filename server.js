@@ -1037,6 +1037,47 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
+  const noteTestEmailMatch = pathname.match(/^\/api\/admin\/field-notes\/([^/]+)\/test-email$/);
+  if (req.method === "POST" && noteTestEmailMatch) {
+    if (!isEmailConfigured()) {
+      json(res, 400, { error: "Email is not configured. Add Resend variables in Railway first." });
+      return;
+    }
+
+    const body = await readBody(req);
+    const testEmail = normalizeEmail(body.email || "georgesmonsif99@gmail.com");
+    if (!isValidEmail(testEmail)) {
+      json(res, 400, { error: "Enter a real test email address." });
+      return;
+    }
+
+    const store = await loadStore();
+    const note = store.fieldNotes.find((item) => item.id === noteTestEmailMatch[1]);
+    if (!note) {
+      json(res, 404, { error: "Field note not found." });
+      return;
+    }
+
+    if (note.status !== "published") {
+      json(res, 400, { error: "Publish the note before sending a test email." });
+      return;
+    }
+
+    const email = buildFieldNoteEmail(note);
+    await sendEmail({ to: testEmail, subject: `[Test] ${email.subject}`, text: email.body, html: email.html });
+
+    store.events.push({
+      type: "field_note_test_email_sent",
+      noteId: note.id,
+      email: testEmail,
+      at: new Date().toISOString(),
+    });
+    await saveStore(store);
+
+    json(res, 200, { ok: true, email: testEmail, note: adminFieldNote(note) });
+    return;
+  }
+
   if (pathname === "/api/admin/settings") {
     const store = await loadStore();
 
