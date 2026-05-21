@@ -1,5 +1,7 @@
 const signupForms = document.querySelectorAll("[data-signup-form]");
 const subscriberEmailKey = "fdtg-subscriber-email";
+let fieldNoteModal = null;
+let previousFocus = null;
 
 async function submitSignup(form) {
   const input = form.querySelector('input[name="email"]');
@@ -53,22 +55,85 @@ function bindFieldNoteCards() {
     if (card.dataset.bound === "true") return;
     card.dataset.bound = "true";
 
-    const toggle = () => {
-      const isOpen = card.classList.toggle("is-open");
-      card.setAttribute("aria-expanded", String(isOpen));
-    };
-
     card.addEventListener("click", (event) => {
       if (event.target.closest("[data-reaction]")) return;
-      toggle();
+      openFieldNoteModal(card);
     });
     card.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        toggle();
+        openFieldNoteModal(card);
       }
     });
   });
+}
+
+function ensureFieldNoteModal() {
+  if (fieldNoteModal) return fieldNoteModal;
+
+  const modal = document.createElement("div");
+  modal.className = "field-note-modal";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.setAttribute("aria-labelledby", "field-note-modal-title");
+  modal.hidden = true;
+  modal.innerHTML = `
+    <div class="field-note-modal__backdrop" data-close-field-note></div>
+    <article class="field-note-modal__panel">
+      <button class="field-note-modal__close" type="button" data-close-field-note aria-label="Close field note">Close</button>
+      <p class="field-note-modal__meta" data-modal-meta></p>
+      <h2 id="field-note-modal-title" data-modal-title></h2>
+      <p class="field-note-modal__summary" data-modal-summary></p>
+      <div class="field-note-modal__body" data-modal-body></div>
+    </article>
+  `;
+
+  modal.querySelectorAll("[data-close-field-note]").forEach((control) => {
+    control.addEventListener("click", closeFieldNoteModal);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !modal.hidden) closeFieldNoteModal();
+  });
+
+  document.body.appendChild(modal);
+  fieldNoteModal = modal;
+  return fieldNoteModal;
+}
+
+function paragraphsHtml(value) {
+  return String(value || "")
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
+function openFieldNoteModal(card) {
+  const modal = ensureFieldNoteModal();
+  const title = card.dataset.title || card.querySelector("h3")?.textContent || "Field note";
+  const summary = card.dataset.summary || card.querySelector(".note-summary")?.textContent || "";
+  const body = card.dataset.body || card.querySelector(".note-body")?.textContent || summary;
+  const category = card.dataset.category || card.querySelector(".note-meta span")?.textContent || "Field note";
+  const date = card.dataset.date || card.querySelector("time")?.textContent || "";
+
+  modal.querySelector("[data-modal-meta]").textContent = [category, date].filter(Boolean).join(" - ");
+  modal.querySelector("[data-modal-title]").textContent = title;
+  modal.querySelector("[data-modal-summary]").textContent = summary;
+  modal.querySelector("[data-modal-summary]").hidden = !summary;
+  modal.querySelector("[data-modal-body]").innerHTML = paragraphsHtml(body);
+
+  previousFocus = document.activeElement;
+  modal.hidden = false;
+  document.body.classList.add("is-reading-field-note");
+  modal.querySelector("[data-close-field-note]").focus();
+}
+
+function closeFieldNoteModal() {
+  if (!fieldNoteModal || fieldNoteModal.hidden) return;
+  fieldNoteModal.hidden = true;
+  document.body.classList.remove("is-reading-field-note");
+  if (previousFocus && typeof previousFocus.focus === "function") previousFocus.focus();
 }
 
 function bindReactions() {
@@ -192,7 +257,7 @@ async function loadPublishedNotes() {
     if (!data.notes || !data.notes.length) return;
 
     timeline.innerHTML = data.notes.map((note, index) => `
-      <article class="field-note-card" tabindex="0" aria-expanded="false" data-note-id="${escapeHtml(note.id)}">
+      <article class="field-note-card" tabindex="0" aria-expanded="false" data-note-id="${escapeHtml(note.id)}" data-title="${escapeHtml(note.title || `Field Note ${data.notes.length - index}`)}" data-summary="${escapeHtml(note.summary || "Raw note from the buildout.")}" data-body="${escapeHtml(note.body || note.summary || "Raw note from the buildout.")}" data-category="Field Note ${data.notes.length - index}" data-date="${note.publishedAt ? new Date(note.publishedAt).toLocaleDateString() : "Draft"}">
         <header>
           <div class="note-meta">
             <span>Field Note ${data.notes.length - index}</span>
