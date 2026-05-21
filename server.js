@@ -336,6 +336,23 @@ function excerptText(value, maxLength = 520) {
   return `${trimmed}...`;
 }
 
+function slugify(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/['"]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+function noteSlug(note) {
+  return slugify(note.slug || note.title) || String(note.id || "field-note");
+}
+
+function fieldNoteUrl(note) {
+  return `${siteUrl}/field-notes/${noteSlug(note)}`;
+}
+
 function formatPostedLine(date = new Date()) {
   const postedAt = new Intl.DateTimeFormat("en-US", {
     weekday: "long",
@@ -354,7 +371,7 @@ function buildFieldNoteEmail(note) {
   const bodyText = cleanEmailText(note.body || "");
   const postedLine = formatPostedLine();
   const excerpt = excerptText(bodyText || summary);
-  const noteUrl = `${siteUrl}/#field-notes`;
+  const noteUrl = fieldNoteUrl(note);
   const body = [
     postedLine,
     title,
@@ -676,6 +693,7 @@ function publicFieldNote(note) {
   return {
     id: note.id,
     title: note.title,
+    slug: noteSlug(note),
     category: note.category,
     summary: note.summary,
     body: note.status === "published" ? note.body : "",
@@ -691,6 +709,7 @@ function adminFieldNote(note) {
   return {
     id: note.id,
     title: note.title,
+    slug: noteSlug(note),
     category: note.category,
     summary: note.summary,
     body: note.body || "",
@@ -1264,6 +1283,8 @@ async function handleApi(req, res, pathname) {
 async function serveStatic(req, res, pathname) {
   const route = pathname === "/"
     ? "/index.html"
+    : pathname.startsWith("/field-notes/")
+      ? "/index.html"
     : pathname === "/admin"
       ? "/admin.html"
       : pathname === "/privacy"

@@ -212,6 +212,28 @@ button {
   line-height: 1.25;
 }
 
+.hero-link {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  margin-top: 20px;
+  padding: 0 16px;
+  color: #06100f;
+  background: #9cc9d2;
+  border: 1px solid rgba(244, 239, 230, 0.34);
+  border-radius: 6px;
+  font-weight: 900;
+  text-decoration: none;
+  text-shadow: none;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
+}
+
+.hero-link:hover,
+.hero-link:focus {
+  background: #b6dbe1;
+  outline: none;
+}
+
 .about .privacy-note {
   font-size: 0.76rem;
   line-height: 1.25;
@@ -623,6 +645,27 @@ body.is-reading-field-note {
 
 .field-note-modal__body p:last-child {
   margin-bottom: 0;
+}
+
+.field-note-modal__actions {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(244, 239, 230, 0.12);
+}
+
+.field-note-modal__actions a {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  padding: 0 14px;
+  color: #06100f;
+  background: #9cc9d2;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 900;
+  text-decoration: none;
 }
 
 article {

@@ -2,6 +2,7 @@ const signupForms = document.querySelectorAll("[data-signup-form]");
 const subscriberEmailKey = "fdtg-subscriber-email";
 let fieldNoteModal = null;
 let previousFocus = null;
+let activeFieldNotePath = "";
 
 async function submitSignup(form) {
   const input = form.querySelector('input[name="email"]');
@@ -85,6 +86,9 @@ function ensureFieldNoteModal() {
       <h2 id="field-note-modal-title" data-modal-title></h2>
       <p class="field-note-modal__summary" data-modal-summary></p>
       <div class="field-note-modal__body" data-modal-body></div>
+      <div class="field-note-modal__actions">
+        <a href="#field-notes" data-modal-link>Share this field note</a>
+      </div>
     </article>
   `;
 
@@ -98,6 +102,20 @@ function ensureFieldNoteModal() {
   document.body.appendChild(modal);
   fieldNoteModal = modal;
   return fieldNoteModal;
+}
+
+function slugify(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/['"]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+function notePathFromCard(card) {
+  const slug = card.dataset.slug || slugify(card.dataset.title || card.querySelector("h3")?.textContent);
+  return slug ? `/field-notes/${slug}` : "/#field-notes";
 }
 
 function paragraphsHtml(value) {
@@ -122,17 +140,29 @@ function openFieldNoteModal(card) {
   modal.querySelector("[data-modal-summary]").textContent = summary;
   modal.querySelector("[data-modal-summary]").hidden = !summary;
   modal.querySelector("[data-modal-body]").innerHTML = paragraphsHtml(body);
+  const notePath = notePathFromCard(card);
+  const modalLink = modal.querySelector("[data-modal-link]");
+  modalLink.href = notePath;
+  modalLink.textContent = "Share this note";
 
   previousFocus = document.activeElement;
   modal.hidden = false;
   document.body.classList.add("is-reading-field-note");
+  activeFieldNotePath = notePath;
+  if (notePath && window.location.pathname !== notePath) {
+    window.history.pushState({ fieldNotePath: notePath }, "", notePath);
+  }
   modal.querySelector("[data-close-field-note]").focus();
 }
 
-function closeFieldNoteModal() {
+function closeFieldNoteModal({ restoreUrl = true } = {}) {
   if (!fieldNoteModal || fieldNoteModal.hidden) return;
   fieldNoteModal.hidden = true;
   document.body.classList.remove("is-reading-field-note");
+  if (restoreUrl && activeFieldNotePath && window.location.pathname === activeFieldNotePath) {
+    window.history.pushState({}, "", "/#field-notes");
+  }
+  activeFieldNotePath = "";
   if (previousFocus && typeof previousFocus.focus === "function") previousFocus.focus();
 }
 
@@ -257,7 +287,7 @@ async function loadPublishedNotes() {
     if (!data.notes || !data.notes.length) return;
 
     timeline.innerHTML = data.notes.map((note, index) => `
-      <article class="field-note-card" tabindex="0" aria-expanded="false" data-note-id="${escapeHtml(note.id)}" data-title="${escapeHtml(note.title || `Field Note ${data.notes.length - index}`)}" data-summary="${escapeHtml(note.summary || "Raw note from the buildout.")}" data-body="${escapeHtml(note.body || note.summary || "Raw note from the buildout.")}" data-category="Field Note ${data.notes.length - index}" data-date="${note.publishedAt ? new Date(note.publishedAt).toLocaleDateString() : "Draft"}">
+      <article class="field-note-card" tabindex="0" aria-expanded="false" data-note-id="${escapeHtml(note.id)}" data-slug="${escapeHtml(note.slug || slugify(note.title || `Field Note ${data.notes.length - index}`))}" data-title="${escapeHtml(note.title || `Field Note ${data.notes.length - index}`)}" data-summary="${escapeHtml(note.summary || "Raw note from the buildout.")}" data-body="${escapeHtml(note.body || note.summary || "Raw note from the buildout.")}" data-category="Field Note ${data.notes.length - index}" data-date="${note.publishedAt ? new Date(note.publishedAt).toLocaleDateString() : "Draft"}">
         <header>
           <div class="note-meta">
             <span>Field Note ${data.notes.length - index}</span>
@@ -279,11 +309,36 @@ async function loadPublishedNotes() {
     timeline.classList.remove("is-loading");
     bindFieldNoteCards();
     bindReactions();
+    wireLatestFieldNote();
+    openLinkedFieldNote();
   } catch {
     timeline.classList.remove("is-loading");
     timeline.innerHTML = '<p class="empty">Field notes are loading slowly. Refresh in a moment.</p>';
   }
 }
+
+function wireLatestFieldNote() {
+  const latest = document.querySelector(".field-note-card");
+  const latestLink = document.querySelector("[data-read-latest]");
+  if (!latest || !latestLink) return;
+  latestLink.href = notePathFromCard(latest);
+}
+
+function openLinkedFieldNote() {
+  const match = window.location.pathname.match(/^\/field-notes\/([^/]+)$/);
+  if (!match) return;
+  const slug = decodeURIComponent(match[1]);
+  const card = document.querySelector(`.field-note-card[data-slug="${CSS.escape(slug)}"]`);
+  if (card) openFieldNoteModal(card);
+}
+
+window.addEventListener("popstate", () => {
+  if (window.location.pathname.startsWith("/field-notes/")) {
+    openLinkedFieldNote();
+    return;
+  }
+  closeFieldNoteModal({ restoreUrl: false });
+});
 
 bindFieldNoteCards();
 bindReactions();
