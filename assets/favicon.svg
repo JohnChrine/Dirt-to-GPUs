@@ -1,9 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Data center rack">
-  <rect width="64" height="64" rx="14" fill="#081110"/>
-  <rect x="18" y="11" width="28" height="42" rx="4" fill="#121d1c" stroke="#fff8eb" stroke-width="3"/>
-  <path d="M23 20h18M23 28h18M23 36h18M23 44h18" stroke="#74b7c8" stroke-width="3" stroke-linecap="round"/>
-  <circle cx="25" cy="20" r="1.8" fill="#d27b4c"/>
-  <circle cx="25" cy="28" r="1.8" fill="#d27b4c"/>
-  <circle cx="25" cy="36" r="1.8" fill="#d27b4c"/>
-  <path d="M14 54h36" stroke="#d27b4c" stroke-width="3" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Field notes">
+  <path d="M17 8h27c4 0 7 3 7 7v38c0 2-2 4-4 4H17c-2 0-4-2-4-4V12c0-2 2-4 4-4z" fill="#fff8eb" stroke="#1a2423" stroke-width="3"/>
+  <path d="M20 18h20M20 27h18M20 36h14" stroke="#74b7c8" stroke-width="3" stroke-linecap="round"/>
+  <path d="M39 43 52 30c2-2 5-2 7 0s2 5 0 7L46 50l-9 3 2-10z" fill="#d27b4c" stroke="#1a2423" stroke-width="3" stroke-linejoin="round"/>
+  <path d="m49 33 7 7" stroke="#fff8eb" stroke-width="3" stroke-linecap="round"/>
+  <path d="m39 43 7 7" stroke="#1a2423" stroke-width="2" stroke-linecap="round"/>
 </svg>
