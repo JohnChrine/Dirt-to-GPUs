@@ -283,6 +283,7 @@ function buildFieldNoteEmail(note) {
     "",
     "---",
     "You are receiving this because you subscribed to From Dirt to GPUs.",
+    `Website: ${siteUrl}`,
     "Want out later? Reply and ask to be removed.",
   ].filter(Boolean).join("\n\n");
   const html = `<!doctype html>
@@ -311,6 +312,7 @@ function buildFieldNoteEmail(note) {
             <tr>
               <td style="padding:18px 0 0; color:#9fb6b2; font-size:13px; line-height:1.55;">
                 <p style="margin:0;">You are receiving this because you subscribed to From Dirt to GPUs.</p>
+                <p style="margin:6px 0 0;">Visit the site: <a href="${escapeHtml(siteUrl)}" style="color:#82d8ff; font-weight:800; text-decoration:none;">${escapeHtml(siteUrl.replace(/^https?:\/\//, ""))}</a></p>
                 <p style="margin:6px 0 0;">Want out later? Reply and ask to be removed.</p>
               </td>
             </tr>
