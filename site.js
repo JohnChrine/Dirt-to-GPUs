@@ -211,10 +211,12 @@ async function loadPublishedNotes() {
         </div>
       </article>
     `).join("");
+    timeline.classList.remove("is-loading");
     bindFieldNoteCards();
     bindReactions();
   } catch {
-    // File previews cannot call the local API. Keep the starter cards visible.
+    timeline.classList.remove("is-loading");
+    timeline.innerHTML = '<p class="empty">Field notes are loading slowly. Refresh in a moment.</p>';
   }
 }
 

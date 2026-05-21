@@ -483,6 +483,20 @@ button {
   line-height: 1.05;
 }
 
+.post-feed.is-loading .field-note-card {
+  display: none;
+}
+
+.post-feed.is-loading::before {
+  display: block;
+  min-height: 160px;
+  padding: 26px;
+  content: "Loading field notes...";
+  color: var(--muted);
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
 .post-feed p {
   max-width: 760px;
   margin-bottom: 0;
