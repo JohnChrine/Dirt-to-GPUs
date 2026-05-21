@@ -44,7 +44,7 @@ On Windows, you can also run:
 
 ## Data storage
 
-Subscribers are stored in:
+Local development stores subscribers in:
 
 ```text
 data/subscribers.json
@@ -52,9 +52,14 @@ data/subscribers.json
 
 This same file also stores draft Field Notes, settings, local DM drafts, and event history.
 
-This is intentionally simple for v1. Before launch, move this to a hosted database or newsletter platform integration.
+Production should use Postgres so deploys do not reset live posts or subscribers.
+When `DATABASE_URL` is set, the app stores the full live state in Postgres
+instead of the local JSON file.
 
-For Railway with a persistent volume, set:
+For Railway, add a Postgres database to the project, attach its `DATABASE_URL`
+variable to this web service, deploy, then restore the latest admin backup once.
+
+For Railway with a persistent volume instead, set:
 
 ```text
 FDTG_DATA_DIR=/data

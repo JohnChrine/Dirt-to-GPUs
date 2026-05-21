@@ -10,6 +10,7 @@ const tls = require("node:tls");
 const root = __dirname;
 const dataDir = process.env.FDTG_DATA_DIR || path.join(root, "data");
 const dataFile = path.join(dataDir, "subscribers.json");
+const dbStoreId = "main";
 
 loadEnvFile();
 
@@ -26,6 +27,8 @@ const emailFromName = process.env.FDTG_EMAIL_FROM_NAME || "From Dirt to GPUs";
 const resendApiKey = process.env.FDTG_RESEND_API_KEY || "";
 const resendFrom = process.env.FDTG_RESEND_FROM || "";
 const siteUrl = (process.env.FDTG_SITE_URL || "https://www.dirttogpus.com").replace(/\/$/, "");
+const databaseUrl = process.env.DATABASE_URL || "";
+let pgPool = null;
 const sessions = new Map();
 
 const mimeTypes = {
@@ -81,6 +84,90 @@ async function ensureStore() {
   } catch {
     await fs.writeFile(dataFile, JSON.stringify(defaultStore(), null, 2));
   }
+}
+
+function normalizeStore(store) {
+  const defaults = defaultStore();
+  return {
+    ...defaults,
+    ...store,
+    settings: { ...defaults.settings, ...(store.settings || {}) },
+    subscribers: store.subscribers || [],
+    inboundMessages: store.inboundMessages || [],
+    fieldNotes: store.fieldNotes || [],
+    events: store.events || [],
+  };
+}
+
+async function loadJsonStore() {
+  await ensureStore();
+  return normalizeStore(JSON.parse(await fs.readFile(dataFile, "utf8")));
+}
+
+async function saveJsonStore(store) {
+  await ensureStore();
+  await fs.writeFile(dataFile, JSON.stringify(store, null, 2));
+}
+
+function getPgPool() {
+  if (!databaseUrl) return null;
+  if (!pgPool) {
+    const { Pool } = require("pg");
+    pgPool = new Pool({ connectionString: databaseUrl });
+  }
+  return pgPool;
+}
+
+async function seedStoreForDatabase() {
+  try {
+    const localStore = await loadJsonStore();
+    if (localStore.subscribers.length || localStore.fieldNotes.some((note) => !String(note.id || "").startsWith("starter-"))) {
+      return localStore;
+    }
+  } catch {
+    // If local JSON is absent or invalid in production, seed with defaults.
+  }
+
+  return normalizeStore(defaultStore());
+}
+
+async function ensureDatabaseStore() {
+  const pool = getPgPool();
+  if (!pool) return;
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fdtg_store (
+      id text PRIMARY KEY,
+      data jsonb NOT NULL,
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
+  const existing = await pool.query("SELECT 1 FROM fdtg_store WHERE id = $1", [dbStoreId]);
+  if (existing.rowCount) return;
+
+  const seed = await seedStoreForDatabase();
+  await pool.query(
+    "INSERT INTO fdtg_store (id, data, updated_at) VALUES ($1, $2::jsonb, now()) ON CONFLICT (id) DO NOTHING",
+    [dbStoreId, JSON.stringify(seed)]
+  );
+}
+
+async function loadDatabaseStore() {
+  await ensureDatabaseStore();
+  const result = await getPgPool().query("SELECT data FROM fdtg_store WHERE id = $1", [dbStoreId]);
+  return normalizeStore(result.rows[0]?.data || defaultStore());
+}
+
+async function saveDatabaseStore(store) {
+  await ensureDatabaseStore();
+  await getPgPool().query(
+    `INSERT INTO fdtg_store (id, data, updated_at)
+     VALUES ($1, $2::jsonb, now())
+     ON CONFLICT (id)
+     DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
+    [dbStoreId, JSON.stringify(normalizeStore(store))]
+  );
 }
 
 function defaultStore() {
@@ -179,23 +266,17 @@ function defaultStore() {
 }
 
 async function loadStore() {
-  await ensureStore();
-  const store = JSON.parse(await fs.readFile(dataFile, "utf8"));
-  const defaults = defaultStore();
-  return {
-    ...defaults,
-    ...store,
-    settings: { ...defaults.settings, ...(store.settings || {}) },
-    subscribers: store.subscribers || [],
-    inboundMessages: store.inboundMessages || [],
-    fieldNotes: store.fieldNotes || [],
-    events: store.events || [],
-  };
+  if (databaseUrl) return loadDatabaseStore();
+  return loadJsonStore();
 }
 
 async function saveStore(store) {
-  await ensureStore();
-  await fs.writeFile(dataFile, JSON.stringify(store, null, 2));
+  if (databaseUrl) {
+    await saveDatabaseStore(store);
+    return;
+  }
+
+  await saveJsonStore(store);
 }
 
 function isEmailConfigured() {
