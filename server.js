@@ -25,6 +25,7 @@ const emailPassword = process.env.FDTG_EMAIL_APP_PASSWORD || process.env.FDTG_EM
 const emailFromName = process.env.FDTG_EMAIL_FROM_NAME || "From Dirt to GPUs";
 const resendApiKey = process.env.FDTG_RESEND_API_KEY || "";
 const resendFrom = process.env.FDTG_RESEND_FROM || "";
+const siteUrl = (process.env.FDTG_SITE_URL || "https://www.dirttogpus.com").replace(/\/$/, "");
 const sessions = new Map();
 
 const mimeTypes = {
@@ -246,18 +247,39 @@ function htmlParagraphs(value) {
     .join("");
 }
 
+function excerptText(value, maxLength = 520) {
+  const text = cleanEmailText(value).replace(/\s+/g, " ").trim();
+  if (text.length <= maxLength) return text;
+  const trimmed = text.slice(0, maxLength).replace(/\s+\S*$/, "").trim();
+  return `${trimmed}...`;
+}
+
+function formatPostedLine(date = new Date()) {
+  const postedAt = new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/Phoenix",
+  }).format(date).replace(/\sAM$/, "am").replace(/\sPM$/, "pm");
+
+  return `New field note posted on ${postedAt}.`;
+}
+
 function buildFieldNoteEmail(note) {
   const title = cleanEmailText(note.title || "New field note");
   const category = cleanEmailText(note.category || "Field Note");
   const summary = cleanEmailText(note.summary || "");
   const bodyText = cleanEmailText(note.body || "");
-  const oneLiner = "Fresh from the field: a short note on the work, pressure, and mindset behind the build.";
+  const postedLine = formatPostedLine();
+  const excerpt = excerptText(bodyText || summary);
+  const noteUrl = `${siteUrl}/#field-notes`;
   const body = [
-    oneLiner,
-    "",
+    postedLine,
     title,
     summary,
-    bodyText,
+    excerpt,
+    "...",
+    `Read the rest: ${noteUrl}`,
     "",
     "---",
     "You are receiving this because you subscribed to From Dirt to GPUs.",
@@ -266,7 +288,6 @@ function buildFieldNoteEmail(note) {
   const html = `<!doctype html>
 <html>
   <body style="margin:0; padding:0; background:#081110; color:#f7f1e7; font-family:Arial, Helvetica, sans-serif;">
-    <div style="display:none; max-height:0; overflow:hidden; opacity:0;">${escapeHtml(oneLiner)}</div>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#081110; padding:32px 16px;">
       <tr>
         <td align="center">
@@ -274,17 +295,17 @@ function buildFieldNoteEmail(note) {
             <tr>
               <td style="padding:0 0 18px;">
                 <div style="color:#82d8ff; font-size:12px; font-weight:800; letter-spacing:2px; text-transform:uppercase;">From Dirt to GPUs</div>
-                <h1 style="margin:10px 0 10px; color:#fff8eb; font-size:32px; line-height:1.12; font-weight:900;">${escapeHtml(title)}</h1>
-                <p style="margin:0; color:#cce3df; font-size:16px; line-height:1.55;">${escapeHtml(oneLiner)}</p>
+                <p style="margin:10px 0 0; color:#cce3df; font-size:16px; line-height:1.55;">${escapeHtml(postedLine)}</p>
               </td>
             </tr>
             <tr>
               <td style="border:1px solid rgba(130,216,255,0.22); background:#101b1a; padding:28px; border-radius:8px;">
                 <div style="color:#82d8ff; font-size:12px; font-weight:800; letter-spacing:1.7px; text-transform:uppercase; margin-bottom:14px;">${escapeHtml(category)}</div>
+                <h1 style="margin:0 0 14px; color:#fff8eb; font-size:32px; line-height:1.14; font-weight:900;">${escapeHtml(title)}</h1>
                 ${summary ? `<p style="margin:0 0 22px; color:#fff8eb; font-size:20px; line-height:1.45; font-weight:800;">${escapeHtml(summary)}</p>` : ""}
-                <div style="color:#f3eadc; font-size:17px; line-height:1.72;">
-                  ${htmlParagraphs(bodyText)}
-                </div>
+                <p style="margin:0; color:#f3eadc; font-size:17px; line-height:1.72;">${escapeHtml(excerpt)}</p>
+                <p style="margin:12px 0 22px; color:#82d8ff; font-size:20px; line-height:1; letter-spacing:3px;">...</p>
+                <a href="${escapeHtml(noteUrl)}" style="display:inline-block; background:#82d8ff; color:#06100f; font-size:14px; font-weight:900; text-decoration:none; padding:12px 16px; border-radius:6px;">Read the rest</a>
               </td>
             </tr>
             <tr>
