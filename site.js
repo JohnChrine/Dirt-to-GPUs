@@ -87,7 +87,8 @@ function ensureFieldNoteModal() {
       <p class="field-note-modal__summary" data-modal-summary></p>
       <div class="field-note-modal__body" data-modal-body></div>
       <div class="field-note-modal__actions">
-        <a href="#field-notes" data-modal-link>Share this field note</a>
+        <button class="field-note-modal__share" type="button" data-modal-share>Share this note</button>
+        <p class="field-note-modal__share-status" data-modal-share-status aria-live="polite"></p>
       </div>
     </article>
   `;
@@ -95,6 +96,7 @@ function ensureFieldNoteModal() {
   modal.querySelectorAll("[data-close-field-note]").forEach((control) => {
     control.addEventListener("click", closeFieldNoteModal);
   });
+  modal.querySelector("[data-modal-share]").addEventListener("click", shareCurrentFieldNote);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !modal.hidden) closeFieldNoteModal();
   });
@@ -116,6 +118,10 @@ function slugify(value) {
 function notePathFromCard(card) {
   const slug = card.dataset.slug || slugify(card.dataset.title || card.querySelector("h3")?.textContent);
   return slug ? `/field-notes/${slug}` : "/#field-notes";
+}
+
+function absoluteUrl(pathname) {
+  return new URL(pathname, window.location.origin).href;
 }
 
 function paragraphsHtml(value) {
@@ -141,9 +147,11 @@ function openFieldNoteModal(card) {
   modal.querySelector("[data-modal-summary]").hidden = !summary;
   modal.querySelector("[data-modal-body]").innerHTML = paragraphsHtml(body);
   const notePath = notePathFromCard(card);
-  const modalLink = modal.querySelector("[data-modal-link]");
-  modalLink.href = notePath;
-  modalLink.textContent = "Share this note";
+  const shareButton = modal.querySelector("[data-modal-share]");
+  const shareStatus = modal.querySelector("[data-modal-share-status]");
+  shareButton.dataset.shareUrl = absoluteUrl(notePath);
+  shareButton.textContent = "Share this note";
+  shareStatus.textContent = "";
 
   previousFocus = document.activeElement;
   modal.hidden = false;
@@ -164,6 +172,27 @@ function closeFieldNoteModal({ restoreUrl = true } = {}) {
   }
   activeFieldNotePath = "";
   if (previousFocus && typeof previousFocus.focus === "function") previousFocus.focus();
+}
+
+async function shareCurrentFieldNote() {
+  const modal = ensureFieldNoteModal();
+  const shareButton = modal.querySelector("[data-modal-share]");
+  const shareStatus = modal.querySelector("[data-modal-share-status]");
+  const shareUrl = shareButton.dataset.shareUrl || window.location.href;
+  const title = modal.querySelector("[data-modal-title]")?.textContent || "From Dirt to GPUs";
+
+  try {
+    if (navigator.share) {
+      await navigator.share({ title, url: shareUrl });
+      shareStatus.textContent = "Share opened.";
+      return;
+    }
+
+    await navigator.clipboard.writeText(shareUrl);
+    shareStatus.textContent = "Link copied.";
+  } catch {
+    shareStatus.textContent = shareUrl;
+  }
 }
 
 function bindReactions() {
