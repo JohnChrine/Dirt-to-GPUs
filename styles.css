@@ -46,7 +46,10 @@ main {
 }
 
 .hero__media img {
-  width: 100%;
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: min(74vw, 1560px);
   height: 100%;
   object-fit: contain;
   object-position: right center;
@@ -62,8 +65,8 @@ main {
 
 .hero::before {
   background:
-    linear-gradient(90deg, rgba(7, 11, 12, 0.9) 0%, rgba(7, 11, 12, 0.58) 36%, rgba(7, 11, 12, 0.2) 68%, rgba(7, 11, 12, 0.34) 100%),
-    linear-gradient(180deg, rgba(7, 11, 12, 0.06) 0%, rgba(7, 11, 12, 0.42) 58%, rgba(13, 19, 20, 0.98) 100%);
+    linear-gradient(90deg, rgba(7, 11, 12, 0.98) 0%, rgba(7, 11, 12, 0.92) 28%, rgba(7, 11, 12, 0.54) 48%, rgba(7, 11, 12, 0.18) 72%, rgba(7, 11, 12, 0.28) 100%),
+    linear-gradient(180deg, rgba(7, 11, 12, 0.04) 0%, rgba(7, 11, 12, 0.42) 58%, rgba(13, 19, 20, 0.98) 100%);
 }
 
 .hero::after {
@@ -916,6 +919,17 @@ article p,
     padding: 28px 20px;
   }
 
+  .hero__media img {
+    width: 112vw;
+    opacity: 0.86;
+  }
+
+  .hero::before {
+    background:
+      linear-gradient(90deg, rgba(7, 11, 12, 0.98) 0%, rgba(7, 11, 12, 0.9) 46%, rgba(7, 11, 12, 0.48) 78%, rgba(7, 11, 12, 0.24) 100%),
+      linear-gradient(180deg, rgba(7, 11, 12, 0.12) 0%, rgba(7, 11, 12, 0.48) 58%, rgba(13, 19, 20, 0.98) 100%);
+  }
+
   .intro,
   .about,
   .field-notes,
@@ -952,6 +966,11 @@ article p,
 }
 
 @media (max-width: 560px) {
+  .hero__media img {
+    width: 150vw;
+    opacity: 0.72;
+  }
+
   .signup {
     flex-direction: column;
   }
