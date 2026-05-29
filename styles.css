@@ -767,6 +767,26 @@ article p,
   font-size: clamp(1.08rem, 1.35vw, 1.28rem);
 }
 
+@media (min-width: 1900px) {
+  .hero {
+    padding-left: calc((100vw - 1800px) / 2 + 54px);
+    padding-right: calc((100vw - 1800px) / 2 + 54px);
+  }
+
+  .hero__media {
+    background:
+      linear-gradient(90deg, #061525 0%, rgba(6, 21, 37, 0.97) 32%, rgba(6, 21, 37, 0.44) 56%, rgba(6, 21, 37, 0.08) 100%),
+      url("/assets/hero-blueprint-overhead.png") calc(50% + 620px) center / auto 108% no-repeat,
+      #061525;
+  }
+
+  .hero::before {
+    background:
+      linear-gradient(90deg, rgba(7, 11, 12, 0.98) 0%, rgba(7, 11, 12, 0.94) 40%, rgba(7, 11, 12, 0.58) 58%, rgba(7, 11, 12, 0.16) 76%, rgba(7, 11, 12, 0.26) 100%),
+      linear-gradient(180deg, rgba(7, 11, 12, 0.04) 0%, rgba(7, 11, 12, 0.42) 58%, rgba(13, 19, 20, 0.98) 100%);
+  }
+}
+
 .experience-path {
   display: grid;
   gap: 0;
