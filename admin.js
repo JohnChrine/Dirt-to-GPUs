@@ -104,6 +104,17 @@ function renderEvents(events) {
     ? events.slice(0, 8).map((event) => `
         <article class="event-item">
           <strong>${escapeHtml(event.type.replaceAll("_", " "))}</strong>
+          ${typeof event.sentCount === "number" ? `<span>Sent ${event.sentCount}; failed ${event.failureCount || 0}</span>` : ""}
+          ${event.failures?.length ? `
+            <ul class="event-failures">
+              ${event.failures.map((failure) => `
+                <li>
+                  <strong>${escapeHtml(failure.email)}</strong>
+                  <span>${escapeHtml(failure.error || "Email provider rejected this recipient.")}</span>
+                </li>
+              `).join("")}
+            </ul>
+          ` : ""}
           ${event.subscriberEmail ? `<span>${escapeHtml(event.subscriberEmail)}</span>` : ""}
           <span>${formatDate(event.at)}</span>
         </article>
@@ -528,8 +539,11 @@ emailNoteButton.addEventListener("click", async () => {
 
   try {
     const result = await api(`/api/admin/field-notes/${selectedNoteId}/email`, { method: "POST" });
+    const failureDetails = result.failures?.length
+      ? ` Failed: ${result.failures.map((failure) => `${failure.email} (${failure.error || "rejected"})`).join("; ")}`
+      : "";
     noteEmailStatus.textContent = result.failureCount
-      ? `Sent to ${result.sentCount}; ${result.failureCount} failed.`
+      ? `Sent to ${result.sentCount}; ${result.failureCount} failed.${failureDetails}`
       : `Sent to ${result.sentCount} subscriber${result.sentCount === 1 ? "" : "s"}.`;
     noteEmailStatus.classList.toggle("is-error", Boolean(result.failureCount));
     await loadNotes();

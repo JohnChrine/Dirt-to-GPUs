@@ -1147,6 +1147,7 @@ async function handleApi(req, res, pathname) {
       noteId: note.id,
       sentCount,
       failureCount: failures.length,
+      failures,
       at: sentAt,
     });
     await saveStore(store);
