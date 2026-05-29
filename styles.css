@@ -42,17 +42,14 @@ main {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  background: #061525;
+  background:
+    linear-gradient(90deg, #061525 0%, rgba(6, 21, 37, 0.96) 28%, rgba(6, 21, 37, 0.34) 58%, rgba(6, 21, 37, 0.06) 100%),
+    url("/assets/hero-blueprint-overhead.png") right center / auto 112% no-repeat,
+    #061525;
 }
 
 .hero__media img {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: min(74vw, 1560px);
-  height: 100%;
-  object-fit: contain;
-  object-position: right center;
+  display: none;
 }
 
 .hero::before,
@@ -65,7 +62,7 @@ main {
 
 .hero::before {
   background:
-    linear-gradient(90deg, rgba(7, 11, 12, 0.98) 0%, rgba(7, 11, 12, 0.92) 28%, rgba(7, 11, 12, 0.54) 48%, rgba(7, 11, 12, 0.18) 72%, rgba(7, 11, 12, 0.28) 100%),
+    linear-gradient(90deg, rgba(7, 11, 12, 0.98) 0%, rgba(7, 11, 12, 0.94) 34%, rgba(7, 11, 12, 0.62) 54%, rgba(7, 11, 12, 0.18) 78%, rgba(7, 11, 12, 0.28) 100%),
     linear-gradient(180deg, rgba(7, 11, 12, 0.04) 0%, rgba(7, 11, 12, 0.42) 58%, rgba(13, 19, 20, 0.98) 100%);
 }
 
@@ -80,8 +77,8 @@ main {
 .hero__content {
   position: relative;
   z-index: 1;
-  width: min(1120px, 100%);
-  max-width: none;
+  width: min(760px, 100%);
+  max-width: 760px;
   color: #f4efe6;
   text-shadow: 0 2px 26px rgba(0, 0, 0, 0.5);
 }
@@ -919,9 +916,11 @@ article p,
     padding: 28px 20px;
   }
 
-  .hero__media img {
-    width: 112vw;
-    opacity: 0.86;
+  .hero__media {
+    background:
+      linear-gradient(90deg, #061525 0%, rgba(6, 21, 37, 0.96) 42%, rgba(6, 21, 37, 0.52) 78%, rgba(6, 21, 37, 0.22) 100%),
+      url("/assets/hero-blueprint-overhead.png") 64% center / auto 108% no-repeat,
+      #061525;
   }
 
   .hero::before {
@@ -966,9 +965,11 @@ article p,
 }
 
 @media (max-width: 560px) {
-  .hero__media img {
-    width: 150vw;
-    opacity: 0.72;
+  .hero__media {
+    background:
+      linear-gradient(90deg, #061525 0%, rgba(6, 21, 37, 0.98) 52%, rgba(6, 21, 37, 0.76) 100%),
+      url("/assets/hero-blueprint-overhead.png") 58% center / auto 102% no-repeat,
+      #061525;
   }
 
   .signup {
