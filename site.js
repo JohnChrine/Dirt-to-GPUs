@@ -1,8 +1,18 @@
 const signupForms = document.querySelectorAll("[data-signup-form]");
 const subscriberEmailKey = "fdtg-subscriber-email";
+const visitorIdKey = "fdtg-visitor-id";
 let fieldNoteModal = null;
 let previousFocus = null;
 let activeFieldNotePath = "";
+
+function getVisitorId() {
+  let visitorId = localStorage.getItem(visitorIdKey);
+  if (!visitorId) {
+    visitorId = window.crypto?.randomUUID ? window.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    localStorage.setItem(visitorIdKey, visitorId);
+  }
+  return visitorId;
+}
 
 async function submitSignup(form) {
   const input = form.querySelector('input[name="email"]');
@@ -220,15 +230,6 @@ function bindReactions() {
       }
 
       if (!card?.dataset.noteId) {
-        let subscriberEmail = localStorage.getItem(subscriberEmailKey) || "";
-        if (!subscriberEmail) {
-          subscriberEmail = window.prompt("Enter the email you subscribed with to react.") || "";
-          subscriberEmail = subscriberEmail.trim().toLowerCase();
-        }
-
-        if (!subscriberEmail) return;
-
-        localStorage.setItem(subscriberEmailKey, subscriberEmail);
         button.closest(".reaction-row")?.querySelectorAll("[data-reaction]").forEach((control) => {
           control.classList.toggle("is-selected", control === button);
         });
@@ -242,29 +243,17 @@ function bindReactions() {
         return;
       }
 
-      let subscriberEmail = localStorage.getItem(subscriberEmailKey) || "";
-      if (!subscriberEmail) {
-        subscriberEmail = window.prompt("Enter the email you subscribed with to react.") || "";
-        subscriberEmail = subscriberEmail.trim().toLowerCase();
-      }
-
-      if (!subscriberEmail) {
-        if (status) {
-          status.textContent = "Subscribe first, then use that email to react.";
-          status.classList.add("is-error");
-        }
-        return;
-      }
+      const subscriberEmail = localStorage.getItem(subscriberEmailKey) || "";
 
       try {
         const response = await fetch(`/api/field-notes/${noteId}/react`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reaction, email: subscriberEmail }),
+          body: JSON.stringify({ reaction, email: subscriberEmail, visitorId: getVisitorId() }),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Reaction failed.");
-        localStorage.setItem(subscriberEmailKey, subscriberEmail);
+        if (data.subscriberEmail) localStorage.setItem(subscriberEmailKey, data.subscriberEmail);
         localStorage.setItem(storageKey, data.viewerReaction || reaction);
         card.querySelectorAll("[data-reaction]").forEach((control) => {
           control.classList.toggle("is-selected", control.dataset.reaction === (data.viewerReaction || reaction));
@@ -272,9 +261,9 @@ function bindReactions() {
         card.querySelector('[data-reaction="up"] .count').textContent = data.reactions.up;
         card.querySelector('[data-reaction="down"] .count').textContent = data.reactions.down;
         if (status) status.textContent = "Reaction counted.";
-      } catch {
+      } catch (error) {
         if (status) {
-          status.textContent = "Subscribe first, then use that email to react.";
+          status.textContent = error.message || "Reaction failed. Try again.";
           status.classList.add("is-error");
         }
       }

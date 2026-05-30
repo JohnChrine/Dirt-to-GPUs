@@ -710,12 +710,14 @@ function noteReactionDetails(note, subscribers = []) {
   const votes = note.reactionVotes || {};
   const details = Object.entries(votes)
     .filter(([, reaction]) => reaction === "up" || reaction === "down")
-    .map(([subscriberId, reaction]) => {
-      const subscriber = subscriberById.get(subscriberId);
+    .map(([voterId, reaction]) => {
+      const isAnonymous = voterId.startsWith("anon:");
+      const subscriber = isAnonymous ? null : subscriberById.get(voterId);
       return {
-        subscriberId,
-        email: subscriber?.email || "Unknown subscriber",
-        status: subscriber?.status || "unknown",
+        subscriberId: isAnonymous ? null : voterId,
+        voterId,
+        email: isAnonymous ? "Anonymous visitor" : subscriber?.email || "Unknown subscriber",
+        status: isAnonymous ? "anonymous" : subscriber?.status || "unknown",
         source: subscriber?.source || "",
         reaction,
         updatedAt: subscriber?.updatedAt || null,
@@ -840,23 +842,13 @@ async function handleApi(req, res, pathname) {
     const body = await readBody(req);
     const reaction = body.reaction === "down" ? "down" : body.reaction === "up" ? "up" : null;
     const email = normalizeEmail(body.email);
+    const visitorId = String(body.visitorId || "").replace(/[^a-zA-Z0-9:-]/g, "").slice(0, 120);
     if (!reaction) {
       json(res, 400, { error: "Invalid reaction." });
       return;
     }
 
-    if (!isValidEmail(email)) {
-      json(res, 400, { error: "Enter the email you subscribed with to react." });
-      return;
-    }
-
     const store = await loadStore();
-    const subscriber = store.subscribers.find((item) => item.email === email && item.status === "active");
-    if (!subscriber) {
-      json(res, 403, { error: "Subscribe with that email before reacting." });
-      return;
-    }
-
     const note = store.fieldNotes.find((item) => item.id === reactionMatch[1] && item.status === "published");
     if (!note) {
       json(res, 404, { error: "Field note not found." });
@@ -865,24 +857,59 @@ async function handleApi(req, res, pathname) {
 
     const now = new Date().toISOString();
     note.reactionVotes = note.reactionVotes || {};
-    subscriber.reactions = subscriber.reactions || {};
+    let subscriber = null;
+    const anonymousVoterId = `anon:${hashValue(visitorId || `${req.socket.remoteAddress}:${req.headers["user-agent"]}`)}`;
+    let voterId = anonymousVoterId;
 
-    const previousReaction = note.reactionVotes[subscriber.id] || subscriber.reactions[note.id] || null;
-    note.reactionVotes[subscriber.id] = reaction;
+    if (isValidEmail(email)) {
+      subscriber = store.subscribers.find((item) => item.email === email);
+      if (subscriber) {
+        subscriber.status = "active";
+        subscriber.source = subscriber.source || "reaction";
+        subscriber.updatedAt = now;
+      } else {
+        subscriber = {
+          id: crypto.randomUUID(),
+          email,
+          status: "active",
+          source: "reaction",
+          notes: "",
+          tags: [],
+          createdAt: now,
+          updatedAt: now,
+          lastContactedAt: null,
+          ipHash: hashValue(req.socket.remoteAddress),
+          userAgentHash: hashValue(req.headers["user-agent"]),
+        };
+        store.subscribers.unshift(subscriber);
+        store.events.push({ type: "subscribed_from_reaction", subscriberId: subscriber.id, at: now });
+      }
+      subscriber.reactions = subscriber.reactions || {};
+      voterId = subscriber.id;
+    }
+
+    const previousReaction = note.reactionVotes[voterId] || note.reactionVotes[anonymousVoterId] || subscriber?.reactions?.[note.id] || null;
+    if (subscriber && anonymousVoterId !== voterId) {
+      delete note.reactionVotes[anonymousVoterId];
+    }
+    note.reactionVotes[voterId] = reaction;
     note.reactions = reactionCounts(note);
-    subscriber.reactions[note.id] = reaction;
-    subscriber.updatedAt = now;
+    if (subscriber) {
+      subscriber.reactions[note.id] = reaction;
+      subscriber.updatedAt = now;
+    }
 
     store.events.push({
       type: previousReaction && previousReaction !== reaction ? "field_note_reaction_changed" : `field_note_${reaction}`,
       noteId: note.id,
-      subscriberId: subscriber.id,
+      subscriberId: subscriber?.id || null,
+      voterId,
       reaction,
       previousReaction,
       at: now,
     });
     await saveStore(store);
-    json(res, 200, { reactions: note.reactions, viewerReaction: reaction });
+    json(res, 200, { reactions: note.reactions, viewerReaction: reaction, subscriberEmail: subscriber?.email || null });
     return;
   }
 
