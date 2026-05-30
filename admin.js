@@ -16,6 +16,7 @@ const restoreFileInput = document.querySelector("[data-restore-file]");
 const backupStatus = document.querySelector("[data-backup-status]");
 const noteList = document.querySelector("[data-note-list]");
 const noteForm = document.querySelector("[data-note-form]");
+const noteReactionPanel = document.querySelector("[data-note-reactions]");
 const newNoteButton = document.querySelector("[data-new-note]");
 const deleteNoteButton = document.querySelector("[data-delete-note]");
 const emailNoteButton = document.querySelector("[data-email-note]");
@@ -317,7 +318,52 @@ function resetNoteForm() {
     ? "Select a published note to email subscribers."
     : "Email sender not configured yet.";
   noteEmailStatus.classList.toggle("is-error", !emailConfigured);
+  renderNoteReactions(null);
   renderNotes();
+}
+
+function renderReactionList(label, reaction, voters) {
+  return `
+    <section>
+      <h4>${label} <span>${voters.length}</span></h4>
+      ${
+        voters.length
+          ? `<ul>
+              ${voters.map((voter) => `
+                <li>
+                  <span class="reaction-mark">${reaction}</span>
+                  <div>
+                    <strong>${escapeHtml(voter.email)}</strong>
+                    <span>${escapeHtml(voter.status || "unknown")} ${voter.source ? `&middot; ${escapeHtml(voter.source)}` : ""}</span>
+                  </div>
+                </li>
+              `).join("")}
+            </ul>`
+          : '<p class="empty">No one yet.</p>'
+      }
+    </section>
+  `;
+}
+
+function renderNoteReactions(note) {
+  if (!note) {
+    noteReactionPanel.innerHTML = `
+      <h3>Reaction detail</h3>
+      <p class="empty">Select a field note to see who liked or disliked it.</p>
+    `;
+    return;
+  }
+
+  const up = note.reactionDetails?.up || [];
+  const down = note.reactionDetails?.down || [];
+  noteReactionPanel.innerHTML = `
+    <h3>Reaction detail</h3>
+    <p class="reaction-total">
+      ${up.length} like${up.length === 1 ? "" : "s"} · ${down.length} dislike${down.length === 1 ? "" : "s"}
+    </p>
+    ${renderReactionList("Liked", "👍", up)}
+    ${renderReactionList("Disliked", "👎", down)}
+  `;
 }
 
 function renderNotes() {
@@ -356,6 +402,7 @@ function renderNotes() {
             ? "Ready to email active subscribers."
           : "Email sender not configured yet.";
       noteEmailStatus.classList.toggle("is-error", !emailConfigured);
+      renderNoteReactions(note);
       renderNotes();
     });
   });
@@ -365,7 +412,9 @@ async function loadNotes() {
   const data = await api("/api/admin/field-notes");
   fieldNotes = data.notes;
   emailConfigured = Boolean(data.emailConfigured);
+  if (selectedNoteId && !fieldNotes.some((note) => note.id === selectedNoteId)) selectedNoteId = null;
   renderNotes();
+  renderNoteReactions(fieldNotes.find((note) => note.id === selectedNoteId) || null);
 }
 
 async function loadSettings() {
@@ -497,6 +546,8 @@ noteForm.addEventListener("submit", async (event) => {
   await loadNotes();
   const savedNote = fieldNotes.find((note) => note.id === selectedNoteId) || fieldNotes[0];
   if (savedNote) selectedNoteId = savedNote.id;
+  renderNotes();
+  renderNoteReactions(savedNote || null);
   emailNoteButton.disabled = !emailConfigured || savedNote?.status !== "published";
   testEmailNoteButton.disabled = !emailConfigured || savedNote?.status !== "published";
   noteEmailStatus.textContent = savedNote?.status === "published"

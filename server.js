@@ -705,7 +705,31 @@ function publicFieldNote(note) {
   };
 }
 
-function adminFieldNote(note) {
+function noteReactionDetails(note, subscribers = []) {
+  const subscriberById = new Map(subscribers.map((subscriber) => [subscriber.id, subscriber]));
+  const votes = note.reactionVotes || {};
+  const details = Object.entries(votes)
+    .filter(([, reaction]) => reaction === "up" || reaction === "down")
+    .map(([subscriberId, reaction]) => {
+      const subscriber = subscriberById.get(subscriberId);
+      return {
+        subscriberId,
+        email: subscriber?.email || "Unknown subscriber",
+        status: subscriber?.status || "unknown",
+        source: subscriber?.source || "",
+        reaction,
+        updatedAt: subscriber?.updatedAt || null,
+      };
+    })
+    .sort((a, b) => a.email.localeCompare(b.email));
+
+  return {
+    up: details.filter((detail) => detail.reaction === "up"),
+    down: details.filter((detail) => detail.reaction === "down"),
+  };
+}
+
+function adminFieldNote(note, subscribers = []) {
   return {
     id: note.id,
     title: note.title,
@@ -719,6 +743,7 @@ function adminFieldNote(note) {
     publishedAt: note.publishedAt || null,
     reactions: reactionCounts(note),
     reactionVotes: note.reactionVotes || {},
+    reactionDetails: noteReactionDetails(note, subscribers),
     emailSentAt: note.emailSentAt || null,
     emailSendCount: note.emailSendCount || 0,
   };
@@ -993,7 +1018,7 @@ async function handleApi(req, res, pathname) {
     json(res, 200, {
       notes: store.fieldNotes
         .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
-        .map(adminFieldNote),
+        .map((note) => adminFieldNote(note, store.subscribers)),
       emailConfigured: isEmailConfigured(),
     });
     return;
@@ -1059,7 +1084,7 @@ async function handleApi(req, res, pathname) {
     store.fieldNotes.unshift(note);
     store.events.push({ type: "field_note_created", noteId: note.id, at: now });
     await saveStore(store);
-    json(res, 201, { note: adminFieldNote(note) });
+    json(res, 201, { note: adminFieldNote(note, store.subscribers) });
     return;
   }
 
@@ -1087,7 +1112,7 @@ async function handleApi(req, res, pathname) {
       note.updatedAt = now;
       store.events.push({ type: "field_note_updated", noteId: note.id, at: now });
       await saveStore(store);
-      json(res, 200, { note: adminFieldNote(note) });
+      json(res, 200, { note: adminFieldNote(note, store.subscribers) });
       return;
     }
 
@@ -1157,7 +1182,7 @@ async function handleApi(req, res, pathname) {
       sentCount,
       failureCount: failures.length,
       failures,
-      note: adminFieldNote(note),
+      note: adminFieldNote(note, store.subscribers),
     });
     return;
   }
@@ -1199,7 +1224,7 @@ async function handleApi(req, res, pathname) {
     });
     await saveStore(store);
 
-    json(res, 200, { ok: true, email: testEmail, note: adminFieldNote(note) });
+    json(res, 200, { ok: true, email: testEmail, note: adminFieldNote(note, store.subscribers) });
     return;
   }
 

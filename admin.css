@@ -426,6 +426,75 @@ h1 {
   gap: 12px;
 }
 
+.note-reactions {
+  grid-column: 2;
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  background: rgba(244, 239, 230, 0.04);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.note-reactions h3,
+.note-reactions h4,
+.note-reactions p {
+  margin: 0;
+}
+
+.note-reactions h4 {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--blue);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.reaction-total {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.note-reactions ul {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.note-reactions li {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.reaction-mark {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  background: rgba(127, 170, 179, 0.12);
+  border-radius: 999px;
+}
+
+.note-reactions strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.note-reactions li span:not(.reaction-mark) {
+  display: block;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
 .body-editor {
   min-height: 260px;
 }
@@ -598,6 +667,10 @@ tr.is-selected {
   .settings-form,
   .grid {
     grid-template-columns: 1fr;
+  }
+
+  .note-reactions {
+    grid-column: auto;
   }
 
   .stats {
